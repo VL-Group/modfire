@@ -1,2 +1,2 @@
-# modfire
-Modern Fast Image Retrieval
+# ModFire
+***Mod***ern ***F***ast ***I***mage ***Re***trieval
