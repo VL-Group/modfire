@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import MapDataPipe, IterDataPipe
 from torchvision.datasets import CIFAR10 as _c10, CIFAR100 as _c100
 
-from modfire.data import Database
+from .database import Database
 
 class CIFAR(abc.ABC):
     def __init__(self, root, trainTransform, evalTransform, targetTransform):

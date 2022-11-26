@@ -23,7 +23,3 @@ class Database(abc.ABC):
             torch.Tensor: [len(queries), K], True or False.
         """
         raise NotImplementedError
-
-class LabeledDatabase(abc.ABC):
-    def __init__(self, labels, images):
-        super().__init__()
