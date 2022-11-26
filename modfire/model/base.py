@@ -60,6 +60,7 @@ class BinaryWrapper(BaseWrapper):
                 progress.update(task, advance=1, progress=f"{total:4d} images")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
+        progress.remove_task(task)
         return self.database.add(allFeatures.numpy())
 
     @torch.no_grad()
@@ -78,6 +79,7 @@ class BinaryWrapper(BaseWrapper):
                 progress.update(task, advance=1, progress=f"{total:4d} queries")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
+        progress.remove_task(task)
         return torch.from_numpy(self.database.search(allFeatures.numpy(), numReturns))
 
 
@@ -111,6 +113,7 @@ class PQWrapper(BaseWrapper):
                 progress.update(task, advance=1, progress=f"{total:4d} images")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
+        progress.remove_task(task)
         return self.database.add(allFeatures.numpy())
 
     @torch.no_grad()
@@ -129,4 +132,5 @@ class PQWrapper(BaseWrapper):
                 progress.update(task, advance=1, progress=f"{total:4d} queries")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
+        progress.remove_task(task)
         return torch.from_numpy(self.database.search(allFeatures.numpy(), numReturns))

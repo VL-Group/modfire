@@ -1,14 +1,15 @@
 import abc
-from typing import Iterator, Union, Any
+from typing import Iterator, Any
 
 from PIL import Image
 import torch
+import numpy as np
 from torch.utils.data import MapDataPipe, IterDataPipe
 from torchvision.datasets import CIFAR10 as _c10, CIFAR100 as _c100
 
-from .database import Database
+from .dataset import Database, Dataset, TrainSet, QuerySet
 
-class CIFAR(abc.ABC):
+class CIFAR(Dataset, abc.ABC):
     def __init__(self, root, trainTransform, evalTransform, targetTransform):
         super().__init__()
         allImages, allTargets = self.getAlldata(root, True)
@@ -48,7 +49,7 @@ class CIFAR(abc.ABC):
         # return allImages, allTargets
 
     @property
-    def TrainSplit(self) -> MapDataPipe:
+    def TrainSet(self) -> TrainSet:
         class _dataPipe(MapDataPipe):
             trains = self.allTrains
             labels = self.allTrainLabels
@@ -73,7 +74,7 @@ class CIFAR(abc.ABC):
         return _dataPipe()
 
     @property
-    def QuerySplit(self) -> IterDataPipe:
+    def QuerySet(self) -> QuerySet:
         class _dataPipe(IterDataPipe):
             queries = self.allQueries
             transform = self.evalTransform
@@ -129,3 +130,35 @@ class CIFAR(abc.ABC):
                 matching = queryLabels[:, None] == databaseLabels
                 return matching
         return _database()
+
+
+class CIFAR10(CIFAR):
+    @staticmethod
+    @abc.abstractmethod
+    def getAlldata(root, shuffle: bool = True):
+        train, test = _c10(root=root, train=True), _c10(root=root, train=False)
+        # [n, c, h, w]
+        allImages = torch.from_numpy(np.concatenate((train.data, test.data)))
+        # [n]
+        allTargets = torch.from_numpy(np.concatenate((np.array(train.targets), np.array(test.targets))))
+        if shuffle:
+            randIdx = torch.randperm(len(allImages))
+            allImages = allImages[randIdx]
+            allTargets = allTargets[randIdx]
+        return allImages, allTargets
+
+
+class CIFAR100(CIFAR):
+    @staticmethod
+    @abc.abstractmethod
+    def getAlldata(root, shuffle: bool = True):
+        train, test = _c100(root=root, train=True), _c100(root=root, train=False)
+        # [n, c, h, w]
+        allImages = torch.from_numpy(np.concatenate((train.data, test.data)))
+        # [n]
+        allTargets = torch.from_numpy(np.concatenate((np.array(train.targets), np.array(test.targets))))
+        if shuffle:
+            randIdx = torch.randperm(len(allImages))
+            allImages = allImages[randIdx]
+            allTargets = allTargets[randIdx]
+        return allImages, allTargets
