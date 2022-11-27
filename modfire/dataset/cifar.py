@@ -1,5 +1,5 @@
 import abc
-from typing import Iterator, Any
+from typing import Iterator, Any, Union, Tuple
 
 from PIL import Image
 import torch
@@ -71,41 +71,52 @@ class CIFAR(Dataset, abc.ABC):
 
             def __len__(self):
                 return len(self.trains)
-        return _dataPipe()
+        class _trainSet(TrainSet):
+            _pipe = _dataPipe()
+            def DataPipe(self) -> MapDataPipe:
+                return self._pipe
+        return _trainSet()
 
     @property
     def QuerySet(self) -> QuerySet:
         class _dataPipe(IterDataPipe):
             queries = self.allQueries
             transform = self.evalTransform
-            def __iter__(self) -> Iterator[torch.Tensor]:
-                for img in self.queries:
+            def __iter__(self) -> Iterator[Union[int, torch.Tensor]]:
+                for i, img in enumerate(self.queries):
                     # doing this so that it is consistent with all other datasets
                     # to return a PIL Image
                     img = Image.fromarray(img)
 
                     if self.transform is not None:
                         img = self.transform(img)
-                    yield img
+                    yield i, img
 
             def __len__(self):
                 return len(self.database)
 
-        return _dataPipe()
+        class _querySet(QuerySet):
+            _pipe = _dataPipe()
+            _allQueryLabels = self.allQueryLabels
+            def DataPipe(self) -> IterDataPipe:
+                return self._pipe
+            def info(self) -> torch.Tensor:
+                return self._allQueryLabels
+        return _querySet()
 
     def _baseSplit(self) -> IterDataPipe:
         class _dataPipe(IterDataPipe):
             database = self.allDatabase
             transform = self.evalTransform
-            def __iter__(self) -> Iterator[torch.Tensor]:
-                for img in self.database:
+            def __iter__(self) -> Iterator[Union[int, torch.Tensor]]:
+                for i, img in enumerate(self.database):
                     # doing this so that it is consistent with all other datasets
                     # to return a PIL Image
                     img = Image.fromarray(img)
 
                     if self.transform is not None:
                         img = self.transform(img)
-                    yield img
+                    yield i, img
 
             def __len__(self):
                 return len(self.database)
@@ -116,19 +127,29 @@ class CIFAR(Dataset, abc.ABC):
     def Database(self) -> Database:
         class _database(Database):
             _dataPipe = self._baseSplit()
-            _queryLabels = self.allQueryLabels
             _baseLabels = self.allDatabaseLabels
             @property
             def DataPipe(self):
                 return self._dataPipe
-            def judge(self, queryInfo: Any, rankList: torch.Tensor) -> torch.Tensor:
-                # NOTE: Here, queryInfo is indices of queries.
-                # [Nq]
-                queryLabels = self._queryLabels[queryInfo]
+            def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+                """Return true positives based on query info.
+
+                Args:
+                    queryInfo (torch.Tensor): Numeric label of [Nq] tensor. Labels follow CIFAR-10 / CIFAR-100.
+                    rankList (torch.Tensor): [Nq, numReturns] indices, each row represents a rank list of top K from database. Indices are obtained by DatPipe.
+
+                Returns:
+                    torch.Tensor: [Nq, numReturns] true positives.
+                    torch.Tensor: [Nq], Number of all trues w.r.t. query.
+                """
+                # NOTE: Here, queryInfo is label of queries.
                 # [Nq, k]
                 databaseLabels = self._baseLabels[rankList]
-                matching = queryLabels[:, None] == databaseLabels
-                return matching
+                #           [Nq, 1]
+                matching = queryInfo[:, None] == databaseLabels
+                # [Nq, Nk] -> [Nq]
+                numAllTrues = (queryInfo[:, None] == self._baseLabels).sum(-1)
+                return matching, numAllTrues
         return _database()
 
 

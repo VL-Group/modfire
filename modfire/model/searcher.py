@@ -21,12 +21,12 @@ class BinarySearcher(Searcher):
             raise ValueError(f"Please use (8*N) or (12*N) or (16*N)-bit hash codes. Current: {int(math.log2(bits))}-bit.")
         self.index = faiss.IndexBinaryFlat(bits)
 
-    def add(self, database: np.ndarray):
+    def add(self, database: np.ndarray, ids: np.ndarray):
         if database.dtype != np.uint8:
             raise ValueError("Array to be indexed must be encoded to uint8.")
         if len(database.shape) != 2 or database.shape[-1] != self.bits // 8:
             raise ValueError(f"Database shape wrong. Expect: [N, {self.bits // 8}]. Got: {[database.shape]}.")
-        self.index.add(database)
+        self.index.add_with_ids(database, ids)
 
     def search(self, query: np.ndarray, numReturns: int) -> np.ndarray:
         if query.dtype != np.uint8:
@@ -56,10 +56,10 @@ class PQSearcher(Searcher):
         faiss.copy_array_to_vector(codebook.ravel(), self.index.pq.centroids)
         self.index.is_trained = True
 
-    def add(self, database: np.ndarray):
+    def add(self, database: np.ndarray, ids: np.ndarray):
         if len(database.shape) != 2 or database.shape[-1] != self.D:
             raise ValueError(f"Database shape wrong. Expect: [N, {self.D}]. Got: {[database.shape]}.")
-        self.index.add(database)
+        self.index.add_with_ids(database, ids)
 
     def search(self, query: np.ndarray, numReturns: int) -> np.ndarray:
         if len(query.shape) != 2 or query.shape[-1] != self.D:

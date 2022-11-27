@@ -25,8 +25,12 @@ from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
 from modfire.validate import Validator
-from modfire.utils import totalParameters, StrPath, checkHook, getRichProgress, EpochFrequencyHook, EMATracker, PrettyStep, SafeTerminate, getSaver
-from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, FunctionRegistry
+from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate
+from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry
+from modfire.dataset import QuerySet, Database, TrainSet
+
+from .hooks import EpochFrequencyHook, checkHook
+from .utils import EMATracker, PrettyStep, getSaver
 
 class PalTrainer(Restorable):
     def __init__(self, config: Config, loggingLevel: int):
@@ -82,29 +86,30 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
 
-        trainLoader, searchLoader, queryLoader = self._createDataLoaders(self.config)
+        trainSet, database, querySet = self._createDataLoaders(self.config, self.saver)
 
-        trainingArgs = {
-            "trainLoader": trainLoader,
-            "searchLoader": searchLoader,
-            "queryLoader": queryLoader
+        datasets = {
+            "trainSet": trainSet,
+            "database": database,
+            "querySet": querySet
         }
 
-        self._beforeRun(beforeRunHook, **trainingArgs)
+        self._beforeRun(beforeRunHook, **datasets)
 
         for i in range(self._epoch, self.config.Train.Epoch):
-            self._epochStart(epochStartHook, **trainingArgs)
+            self._epochStart(epochStartHook, **datasets)
             trainLoader.sampler.set_epoch(i)
-            self._runAnEpoch(stepStartHook, stepFinishHook, trainLoader, trainingArgs)
-            self._epochFinish(epochFinishHook, trainSet=trainLoader.dataset, **trainingArgs)
+            self._runAnEpoch(stepStartHook, stepFinishHook, **datasets)
+            self._epochFinish(epochFinishHook, **datasets)
         self._afterRun(afterRunHook)
 
-    def _runAnEpoch(self, stepStartHook, stepFinishHook, trainLoader, trainingArgs):
+    def _runAnEpoch(self, stepStartHook, stepFinishHook, **datasets):
+        trainSet = datasets["trainSet"]
         self._model.train()
         for images, targets in trainLoader:
             images = images.cuda(non_blocking=True)
 
-            self._stepStart(stepStartHook, **trainingArgs)
+            self._stepStart(stepStartHook)
 
             self._optimizer.zero_grad()
             z = self._model(images)
@@ -112,7 +117,7 @@ class PalTrainer(Restorable):
             loss.backward()
             self._optimizer.step()
 
-            self._stepFinish(stepFinishHook, loss=loss, **trainingArgs)
+            self._stepFinish(stepFinishHook, loss=loss)
 
     @staticmethod
     def _preRegistration(config: Config, saver: Saver):
@@ -148,6 +153,7 @@ class PalTrainer(Restorable):
     @staticmethod
     def _createDataLoaders(config: Config, saver: Saver):
         saver.debug("Train and validation datasets mounted.")
+
 
     @staticmethod
     def _createModel(rank: int, config: Config, saver: Saver) -> Tuple[DistributedDataParallel, Callable[..., nn.Module]]:
@@ -203,12 +209,12 @@ class PalTrainer(Restorable):
         self._step += 1
         hook(self._step, self._epoch, self, *args, logger=self.saver, loss=loss, **kwArgs)
 
-    def _epochStart(self, hook, *args, trainLoader, **kwArgs):
+    def _epochStart(self, hook, *args, **kwArgs):
         self.saver.debug("Epoch %4d started.", self._epoch + 1)
 
         gc.collect()
         gc.collect()
-        hook(self._step, self._epoch, self, *args, trainLoader=trainLoader, logger=self.saver, **kwArgs)
+        hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
     def _epochFinish(self, hook, *args, **kwArgs):
         self._epoch += 1
@@ -287,13 +293,13 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.add_scalar(f"Stat/Loss", loss, global_step=self._step)
         self.saver.add_scalar("Stat/Lr", self._scheduler.get_last_lr()[0], global_step=self._step)
 
-    def _epochStart(self, hook, *args, trainLoader, **kwArgs):
-        totalBatches = len(trainLoader)
+    def _epochStart(self, hook, *args, trainSet, **kwArgs):
+        totalBatches = len(trainSet)
         self.progress.update(self.trainingBar, total=totalBatches)
         self.progress.update(self.epochBar, total=self.config.Train.Epoch * totalBatches, completed=self._step, description=f"[{self._epoch + 1:4d}/{self.config.Train.Epoch:4d}]")
 
         self.progress.reset(self.trainingBar)
-        super()._epochStart(hook, *args, trainLoader=trainLoader, **kwArgs)
+        super()._epochStart(hook, *args, trainSet=trainSet, **kwArgs)
 
     def _createHooks(self, config: Config, saver: Saver):
         allHooks = getAllHooks(config.Train.Hooks)
@@ -316,17 +322,16 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.add_scalar("Stat/Epoch", self._epoch, self._step)
         # self.saver.add_images("Train/Raw", tensorToImage(images), global_step=self._step)
 
-    def validate(self, *_, queryLoader: DataLoader, searchLoader: DataLoader, **__):
+    def validate(self, *_, database: Database, querySet: QuerySet, **__):
         torch.cuda.empty_cache()
 
         self.saver.debug("Start validation at epoch %4d.", self._epoch)
 
-        self._model.eval()
-        results, summary = self.validator.validate(self._epoch, self._model, queryLoader, searchLoader, self.progress)
+        results, summary = self.validator.validate(self._model.module.eval(), database, querySet, self.progress)
 
-        self.saver.add_scalar(f"Eval/mAP@{self.validator.K}", results["mAP"], global_step=self._step)
-        self.saver.add_scalar(f"Eval/Recall@{self.validator.K}", results["Recall"], global_step=self._step)
-        self.saver.add_scalar(f"Eval/Precision@{self.validator.K}", results["Precision"], global_step=self._step)
+        self.saver.add_scalar(f"Eval/mAP@{self.validator.numReturns}", results["mAP"], global_step=self._step)
+        self.saver.add_scalar(f"Eval/Recall@{self.validator.numReturns}", results["Recall"], global_step=self._step)
+        self.saver.add_scalar(f"Eval/Precision@{self.validator.numReturns}", results["Precision"], global_step=self._step)
         self.saver.add_images(f"Eval/Visualization", results["Visualization"], global_step=self._step)
 
         self.save()

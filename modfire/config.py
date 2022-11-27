@@ -34,9 +34,9 @@ class TrainSchema(Schema):
     batchSize = fields.Int(required=True, description="Batch size for training. NOTE: The actual batch size (whole world) is computed by `batchSize * gpus`.", exclusiveMinimum=0)
     epoch = fields.Int(required=True, description="Total training epochs.", exclusiveMinimum=0)
     valFreq = fields.Int(required=True, description="Run validation after every `valFreq` epochs.", exclusiveMinimum=0)
-    trainSet = fields.Str(required=True, description="A txt path to load images per line.")
-    searchSet = fields.Str(required=True, description="A txt path to load images per line for database.")
-    querySet = fields.Str(required=True, description="A txt path to load images per line for query.")
+    trainSet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for training.")
+    database = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution database.")
+    querySet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution query.")
     saveDir = fields.Str(required=True, description="A dir path to save model checkpoints, TensorBoard messages and logs.")
     ckptPath = fields.Str(required=True, description="Path to restore model ckpt for warm training.")
     debug = fields.Bool(required=True, description="Debug mode flag.")
@@ -45,6 +45,7 @@ class TrainSchema(Schema):
     gpu = fields.Nested(GPUSchema(), required=True, description="GPU configs for training.")
     hooks = fields.List(fields.Nested(GeneralSchema()), required=False, description="Hooks used for training. Key is used to retrieve hook from `LBHash.train.hooks`.")
     externalLib = fields.List(fields.Str(), required=False, allow_none=True, description="External libraries used for training. All python files in `externalLib` will be imported as modules. In this way, you could extend registries.")
+    criterion = fields.Nested(GeneralSchema(), required=True, description="Loss function used for training.")
 
     @post_load
     def _(self, data, **kwargs):
@@ -98,13 +99,14 @@ class Train:
     batchSize: int
     epoch: int
     valFreq: int
-    trainSet: str
-    searchSet: str
-    querySet: str
+    trainSet: General
+    database: General
+    querySet: General
     saveDir: str
     target: str
     optim: General
     schdr: General
+    criterion: General
     debug: bool
     ckptPath: str
     gpu: GPU
@@ -124,15 +126,15 @@ class Train:
         return self.valFreq
 
     @property
-    def TrainSet(self) -> str:
+    def TrainSet(self) -> General:
         return self.trainSet
 
     @property
-    def SearchSet(self) -> str:
-        return self.searchSet
+    def Database(self) -> General:
+        return self.database
 
     @property
-    def QuerySet(self) -> str:
+    def QuerySet(self) -> General:
         return self.querySet
 
     @property
@@ -165,6 +167,10 @@ class Train:
     @property
     def Schdr(self) -> General:
         return self.schdr
+
+    @property
+    def Criterion(self) -> General:
+        return self.criterion
 
     @property
     def GPU(self) -> GPU:

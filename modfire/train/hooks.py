@@ -2,13 +2,17 @@ import abc
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, List, Union, Dict
+import logging
 
+import torch
 from vlutils.saver import Saver
-from vlutils.base.freqHook import ChainHook
+from vlutils.base.freqHook import ChainHook, FrequecyHook
+from vlutils.logger import functionFullName, LoggerBase
 
 from modfire.config import General
 from modfire.utils.registry import HookRegistry
 from modfire.train.trainer import PalTrainer
+from modfire.utils import nop
 
 
 class HookType(Enum):
@@ -174,3 +178,19 @@ def getAllHooks(otherHooks: List[General]) -> Dict[str, ChainHook]:
     # for key in builtInHooks.keys():
     #     allHooks[key] = ChainHook(builtInHooks[key], allHooks[key])
     return { str(key): value for key, value in allHooks.items() }
+
+
+
+
+class EpochFrequencyHook(FrequecyHook):
+    def __call__(self, step: int, epoch: int, *args: Any, **kwArgs: Any) -> Dict[int, Any]:
+        with torch.inference_mode():
+            return super().__call__(epoch, step, epoch, *args, **kwArgs)
+
+def checkHook(function, name, logger: Union[logging.Logger, LoggerBase]=logging.root):
+    if function is None:
+        logger.debug("No <%s>.", name)
+        return nop
+    fullName = functionFullName(function)
+    logger.debug("<%s> is `%s`.", name, fullName)
+    return function

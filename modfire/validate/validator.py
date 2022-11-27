@@ -1,12 +1,12 @@
 import torch
-from torchdata.dataloader2 import DataLoader2
-from torch.utils.data import IterDataPipe
 from rich.progress import Progress
 from vlutils.metrics.meter import Meters
 
 from modfire.config import Config
 from modfire.model.base import BaseWrapper
-from modfire.dataset import Database
+from modfire.dataset import Database, QuerySet
+
+from .metrics import mAP, Precision, Recall, Visualization
 
 class Validator:
     def __init__(self, config: Config):
@@ -25,7 +25,7 @@ class Validator:
         self._meter.reset()
 
         model.add(database.DataPipe, progress)
-        rankList = model.search(queries, self.numReturns, progress)
-        truePositives = database.judge(queries.Info, rankList)
-        self._meter(truePositives)
+        queryIndices, rankList = model.search(queries.DataPipe, self.numReturns, progress)
+        truePositives, numAllTrues = database.judge(queries.info(queryIndices), rankList)
+        self._meter(truePositives, numAllTrues)
         return self._meter.results(), self._meter.summary()

@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import Optional, Tuple
 
 from rich.progress import Progress
 import torch
@@ -50,37 +50,45 @@ class BinaryWrapper(BaseWrapper):
             task = progress.add_task(f"[ Index ]", total=None, progress=f"{0:4d} images", suffix="")
         dataLoader = DataLoader2(images, reading_service=MultiProcessingReadingService(num_workers=8, pin_memory=True))
         allFeatures = list()
+        allIdx = list()
         total = 0
-        for image in dataLoader:
+        for idx, image in dataLoader:
             # [N, D]
             h = self.encode(image.to(self._dummy.device, non_blocking=True))
             allFeatures.append(h.cpu())
+            allIdx.append(idx.cpu())
             total += len(h)
             if progress is not None:
                 progress.update(task, advance=1, progress=f"{total:4d} images")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
-        progress.remove_task(task)
-        return self.database.add(allFeatures.numpy())
+        allIdx = torch.cat(allIdx)
+        if progress is not None:
+            progress.remove_task(task)
+        return self.database.add(allFeatures.numpy(), allIdx.numpy())
 
     @torch.no_grad()
-    def search(self, queries: IterDataPipe, numReturns: int, progress: Optional[Progress] = None) -> torch.Tensor:
+    def search(self, queries: IterDataPipe, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=None, progress=f"{0:4d} queries", suffix="")
         dataLoader = DataLoader2(queries, reading_service=MultiProcessingReadingService(num_workers=8, pin_memory=True))
         allFeatures = list()
+        allIdx = list()
         total = 0
-        for image in dataLoader:
+        for idx, image in dataLoader:
             # [D]
             h = self.encode(image.to(self._dummy.device, non_blocking=True))
             allFeatures.append(h.cpu())
+            allIdx.append(idx.cpu())
             total += len(h)
             if progress is not None:
                 progress.update(task, advance=1, progress=f"{total:4d} queries")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
-        progress.remove_task(task)
-        return torch.from_numpy(self.database.search(allFeatures.numpy(), numReturns))
+        allIdx = torch.cat(allIdx)
+        if progress is not None:
+            progress.remove_task(task)
+        return allIdx, torch.from_numpy(self.database.search(allFeatures.numpy(), numReturns))
 
 
 class PQWrapper(BaseWrapper):
@@ -99,38 +107,46 @@ class PQWrapper(BaseWrapper):
 
     @torch.no_grad()
     def add(self, images: IterDataPipe, progress: Optional[Progress] = None):
+        total = 0
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=None, progress=f"{0:4d} images", suffix="")
         dataLoader = DataLoader2(images, reading_service=MultiProcessingReadingService(num_workers=8, pin_memory=True))
         allFeatures = list()
-        total = 0
-        for image in dataLoader:
+        allIdx = list()
+        for idx, image in dataLoader:
             # [N, D]
             x = self.encode(image.to(self._dummy.device, non_blocking=True))
             allFeatures.append(x.cpu())
+            allIdx.append(idx.cpu())
             total += len(x)
             if progress is not None:
                 progress.update(task, advance=1, progress=f"{total:4d} images")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
-        progress.remove_task(task)
-        return self.database.add(allFeatures.numpy())
+        allIdx = torch.cat(allIdx)
+        if progress is not None:
+            progress.remove_task(task)
+        return self.database.add(allFeatures.numpy(), allIdx.numpy())
 
     @torch.no_grad()
-    def search(self, queries: IterDataPipe, numReturns: int, progress: Optional[Progress] = None) -> torch.Tensor:
+    def search(self, queries: IterDataPipe, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=None, progress=f"{0:4d} queries", suffix="")
         dataLoader = DataLoader2(queries, reading_service=MultiProcessingReadingService(num_workers=8, pin_memory=True))
         allFeatures = list()
+        allIdx = list()
         total = 0
-        for image in dataLoader:
+        for idx, image in dataLoader:
             # [D]
             x = self.encode(image.to(self._dummy.device, non_blocking=True))
             allFeatures.append(x.cpu())
+            allIdx.append(idx.cpu())
             total += len(x)
             if progress is not None:
                 progress.update(task, advance=1, progress=f"{total:4d} queries")
         # [N, D]
         allFeatures = torch.cat(allFeatures)
-        progress.remove_task(task)
-        return torch.from_numpy(self.database.search(allFeatures.numpy(), numReturns))
+        allIdx = torch.cat(allIdx)
+        if progress is not None:
+            progress.remove_task(task)
+        return allIdx, torch.from_numpy(self.database.search(allFeatures.numpy(), numReturns))

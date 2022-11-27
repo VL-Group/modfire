@@ -33,7 +33,14 @@ def initializeBaseConfigs(rank: int, worldSize: int, logger: Union[logging.Logge
     np.random.seed(3407)
     logger.debug("            Random seed = `%d`", 3407)
     torch.cuda.set_device(rank)
-    dist.init_process_group("nccl", world_size=worldSize, rank=rank, init_method="file:///tmp/???")
+
+    swapFilePath = os.path.join(Consts.TempDir, "__modfire_train_ddp_rpc_swap_file")
+    try:
+        os.remove(swapFilePath)
+    except:
+        pass
+
+    dist.init_process_group("nccl", world_size=worldSize, rank=rank, init_method=f"file://{os.path.abspath(swapFilePath)}")
     logger.debug("Process group = `%s`, world size = `%d`", "NCCL", worldSize)
 
 def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.Path, loggingLevel: int):
