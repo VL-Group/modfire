@@ -38,6 +38,12 @@ class BaseWrapper(nn.Module, abc.ABC):
     def add(self, database: Database, progress: Optional[Progress] = None):
         raise NotImplementedError
     @abc.abstractmethod
+    def remove(self, ids: torch.Tensor):
+        raise NotImplementedError
+    @abc.abstractmethod
+    def reset(self):
+        raise NotImplementedError
+    @abc.abstractmethod
     def search(self, queries: QuerySet, numReturns: int, progress: Optional[Progress] = None) -> torch.Tensor:
         raise NotImplementedError
 
@@ -87,6 +93,13 @@ class BinaryWrapper(BaseWrapper):
         return self.database.add(allFeatures.numpy(), allIdx.numpy())
 
     @torch.no_grad()
+    def remove(self, ids: torch.Tensor):
+        return self.database.remove(ids.numpy())
+
+    def reset(self):
+        return self.database.reset()
+
+    @torch.no_grad()
     def search(self, queries: QuerySet, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f"{0:4d} queries", suffix="")
@@ -123,10 +136,6 @@ class PQWrapper(BaseWrapper):
     def updateCodebook(self):
         self.database.assignCodebook(self.codebook.cpu().numpy())
 
-    def eval(self):
-        self.updateCodebook()
-        return super().eval()
-
     @torch.no_grad()
     def add(self, database: Database, progress: Optional[Progress] = None):
         total = 0
@@ -149,6 +158,14 @@ class PQWrapper(BaseWrapper):
         if progress is not None:
             progress.remove_task(task)
         return self.database.add(allFeatures.numpy(), allIdx.numpy())
+
+    @torch.no_grad()
+    def remove(self, ids: torch.Tensor):
+        return self.database.remove(ids.numpy())
+
+    def reset(self):
+        self.updateCodebook()
+        return self.database.reset()
 
     @torch.no_grad()
     def search(self, queries: QuerySet, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:

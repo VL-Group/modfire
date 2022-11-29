@@ -22,6 +22,7 @@ class Validator:
     def validate(self, model: BaseWrapper, database: Database, queries: QuerySet, progress: Progress):
         model.eval()
         self._meter.reset()
+        model.reset()
 
         model.add(database, progress)
         queryIndices, rankList = model.search(queries, self.numReturns, progress)

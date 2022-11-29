@@ -20,7 +20,14 @@ class BinarySearcher(Searcher):
         self.bits = bits
         if self.bits % 8 != 0 and self.bits % 12 != 0 and self.bits % 16 != 0:
             raise ValueError(f"Please use (8*N) or (12*N) or (16*N)-bit hash codes. Current: {bits}-bit.")
-        self.index = faiss.IndexBinaryFlat(bits)
+        self.binary = faiss.IndexBinaryFlat(bits)
+        self.index = faiss.IndexBinaryIDMap(self.binary)
+
+    def reset(self):
+        return self.index.reset()
+
+    def remove(self, ids: np.ndarray):
+        return self.index.remove_ids(ids)
 
     def add(self, database: np.ndarray, ids: np.ndarray):
         if database.dtype != np.uint8:
@@ -35,7 +42,7 @@ class BinarySearcher(Searcher):
         if len(query.shape) != 2 or query.shape[-1] != self.bits // 8:
             raise ValueError(f"Query shape wrong. Expect: [N, {self.bits // 8}]. Got: {[query.shape]}.")
         if numReturns < 0:
-            numReturns = len(faiss.vector_to_array(self.index.xb))
+            numReturns = self.index.ntotal
         _, indices = self.index.search(query, numReturns)
         return indices
 
@@ -45,7 +52,8 @@ class PQSearcher(Searcher):
         M, K, D = codebook.shape
         if K != 256 and K != 4096 and K != 65536:
             raise ValueError(f"Please use 8,12,16-bit quantization. Current: {int(math.log2(K))}-bit.")
-        self.index = faiss.IndexPQ(D * M, M, int(math.log2(K)))
+        self.pq = faiss.IndexPQ(D * M, M, int(math.log2(K)))
+        self.index = faiss.IndexIDMap(self.pq)
         # Codebook params
         self.M = M
         self.K = K
@@ -56,8 +64,14 @@ class PQSearcher(Searcher):
         M, K, D = codebook.shape
         if self.M != M or self.K != K or self.D != D:
             raise ValueError(f"Codebook shape mis-match. Expect: {[self.M, self.K, self.D]}, Got: {[M, K, D]}.")
-        faiss.copy_array_to_vector(codebook.ravel(), self.index.pq.centroids)
+        faiss.copy_array_to_vector(codebook.ravel(), self.pq.pq.centroids)
         self.index.is_trained = True
+
+    def reset(self):
+        return self.index.reset()
+
+    def remove(self, ids: np.ndarray):
+        return self.index.remove_ids(ids)
 
     def add(self, database: np.ndarray, ids: np.ndarray):
         if len(database.shape) != 2 or database.shape[-1] != self.D:
@@ -68,6 +82,6 @@ class PQSearcher(Searcher):
         if len(query.shape) != 2 or query.shape[-1] != self.D:
             raise ValueError(f"Query shape wrong. Expect: [N, {self.D}]. Got: {[query.shape]}.")
         if numReturns < 0:
-            numReturns = len(self.index.codes) // self.index.code_size
+            numReturns = self.index.ntotal
         _, indices = self.index.search(query, numReturns)
         return indices

@@ -103,7 +103,7 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
 
-        trainSet, database, querySet = self._createDatasets(self.config, self.saver)
+        trainSet, querySet, database  = self._createDatasets(self.config, self.saver)
 
         datasets = {
             "trainSet": trainSet,
