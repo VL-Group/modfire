@@ -3,12 +3,13 @@ model:
   key: HashModel
   params:
     bits: 32
-    backbone: resnet-50
+    backbone: resnet50
     hashMethod: LogitHash
 train:
   epoch: 100
   valFreq: 1
   numReturns: -1
+  trainer: BaseTrainer
   trainSet:
     key: CIFAR10
     params:
@@ -28,6 +29,7 @@ train:
   criterion:
     key: CSQ
     params:
+      bits: 32
       numClasses: 10
   externalLib: []
     # - some/modules/to/be/registered1.py

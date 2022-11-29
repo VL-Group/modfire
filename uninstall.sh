@@ -10,3 +10,4 @@ fi
 eval "$(conda shell.bash hook)"
 conda activate base
 conda env remove -n modfire
+conda deactivate

@@ -37,8 +37,8 @@ class TrainSchema(Schema):
     trainSet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for training.")
     database = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution database.")
     querySet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution query.")
+    trainer = fields.Str(required=False, default="BaseTrainer", description="A key to retrieve from TrainerBuilder, default is `BaseTrainer`.")
     saveDir = fields.Str(required=True, description="A dir path to save model checkpoints, TensorBoard messages and logs.")
-    ckptPath = fields.Str(required=True, description="Path to restore model ckpt for warm training.")
     criterion = fields.Nested(GeneralSchema(), required=True, description="Loss function used for training.")
     optim = fields.Nested(GeneralSchema(), required=True, description="Optimizer used for training. As for current we have `Adam` and `Lamb`.")
     schdr = fields.Nested(GeneralSchema(), required=True, description="Learning rate scheduler used for training. As for current we have `ReduceLROnPlateau`, `Exponential`, `MultiStep`, `OneCycle` and all schedulers defined in `modfire.train.lrSchedulers`.")
@@ -106,26 +106,20 @@ class GPU:
 
 @dataclass
 class Train:
-    batchSize: int
     epoch: int
     valFreq: int
+    trainer: str
     trainSet: General
     database: General
     querySet: General
     saveDir: str
-    target: str
     optim: General
     schdr: General
     criterion: General
-    ckptPath: str
     numReturns: int
     gpu: GPU
     hooks: Optional[List[General]] = None
     externalLib: Optional[List[str]] = None
-
-    @property
-    def BatchSize(self) -> int:
-        return self.batchSize
 
     @property
     def Epoch(self) -> int:
@@ -134,6 +128,10 @@ class Train:
     @property
     def ValFreq(self) -> int:
         return self.valFreq
+
+    @property
+    def Trainer(self) -> str:
+        return self.trainer
 
     @property
     def NumReturns(self) -> int:
@@ -156,26 +154,7 @@ class Train:
         return self.saveDir
 
     @property
-    def Target(self) -> str:
-        return self.target
-
-    @property
-    def Debug(self) -> bool:
-        return self.debug
-
-    @property
-    def CkptPath(self) -> str:
-        return self.ckptPath
-
-    @property
     def Optim(self) -> General:
-        if "lr" in self.optim.Params:
-            batchSize = self.BatchSize
-            exponent = math.log2(batchSize)
-            scale = 3 - exponent / 2
-            optim = deepcopy(self.optim)
-            optim.Params["lr"] /= (2 ** scale)
-            return optim
         return self.optim
 
     @property

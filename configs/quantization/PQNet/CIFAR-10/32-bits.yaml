@@ -6,7 +6,7 @@ model:
     k: 256
     d: 256
     intraNormalization: true
-    backbone: resnet-50
+    backbone: resnet50
     pqMethod: SoftPQ
 train:
   epoch: 100

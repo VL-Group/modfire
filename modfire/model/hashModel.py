@@ -5,7 +5,7 @@ from torchvision.models import get_model, get_model_weights
 from vlutils.base import Registry
 
 from .utils import findLastLinear, replaceModule
-from .base import BinaryWrapper
+from .base import BinaryWrapper, ModelRegistry
 
 
 _PRETRAINED_MODEL_CLASSES = 1000
@@ -52,16 +52,17 @@ class STEHash(HashLayer):
 
 @HashRegistry.register
 class SoftHash(HashLayer):
-    def trainableHashFunction(self, h: Tensor, temperature: float) -> Tensor:
+    def trainableHashFunction(self, h: Tensor, temperature: float = 1.0) -> Tensor:
         return (h / temperature).tanh()
 
 
 @HashRegistry.register
-class LogitHash(nn.Module):
-    def trainableHashFunction(self, h: Tensor, temperature: float) -> Tensor:
+class LogitHash(HashLayer):
+    def trainableHashFunction(self, h: Tensor, temperature: float = 1.0) -> Tensor:
         return h / temperature
 
 
+@ModelRegistry.register
 class HashModel(BinaryWrapper):
     def __init__(self, bits: int, backbone: str, hashMethod: str, *args, **kwArgs):
         super().__init__(bits)

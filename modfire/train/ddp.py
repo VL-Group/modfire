@@ -8,13 +8,13 @@ import logging
 import torch
 import torch.distributed as dist
 from vlutils.config import summary
-from vlutils.logger import LoggerBase
+from vlutils.logger import LoggerBase, trackingFunctionCalls
 import numpy as np
 
 from modfire.config import Config
 from modfire import Consts
 
-from .trainer import getTrainer
+from .trainer import TrainerBuilder
 
 
 def initializeBaseConfigs(rank: int, worldSize: int, logger: Union[logging.Logger, LoggerBase] = logging.root):
@@ -62,17 +62,11 @@ def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.
 
     dist.barrier()
 
-    trainer = getTrainer(rank, config, loggingLevel)
+    trainer = trackingFunctionCalls(TrainerBuilder.get(config.Train.Trainer))(rank, config, loggingLevel)
 
     if tmpFile is not None:
-        trainer.saver.info("Found ckpt to resume at %s", resume)
-        trainer.restoreStates(tmpFile)
-
-    # trainLoader, trainSampler = getTrainLoader(rank, worldSize, config.Train.TrainSet, config.Train.BatchSize, logger=saver)
-    # valLoader = getValLoader(config.Train.ValSet, disable=rank != 0, logger=saver)
-    # **getAllHooks(config.Train.Hooks)
+        trainer.resume(tmpFile)
 
     trainer.train()
 
-    trainer.saver.debug(summary(config.serialize()))
-    trainer.saver.info("Bye.")
+    trainer.done()

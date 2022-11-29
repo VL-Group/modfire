@@ -15,7 +15,7 @@ class Validator:
             mAP(numReturns),
             Precision(numReturns),
             Recall(numReturns),
-            Visualization()
+            # Visualization()
         ])
 
     @torch.no_grad()

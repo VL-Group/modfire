@@ -2,7 +2,7 @@
 # Python version = 3.8.x
 FROM nvcr.io/nvidia/pytorch:22.04-py3
 
-RUN conda install -y "tensorboard<3" "rich<11" "python-lmdb<2" "pyyaml<7" "marshmallow<4" "click<9" "msgpack-python<2" packaging "faiss-cpu<1.8" -c conda-forge -c pytorch
+RUN conda install -y "tensorboard<3" "rich<11" "python-lmdb<2" "pyyaml<7" "marshmallow<4" "click<9" "msgpack-python<2" "scipy<2" packaging "faiss-cpu<1.8" -c conda-forge -c pytorch
 
 WORKDIR /workspace
 

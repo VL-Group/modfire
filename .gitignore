@@ -1,3 +1,14 @@
+# User-defined paths
+.vscode/
+*ckpt*
+data/
+data
+*.mcquic
+*.mcq
+saved/
+tmp/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

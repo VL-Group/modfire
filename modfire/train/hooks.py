@@ -11,7 +11,6 @@ from vlutils.logger import functionFullName, LoggerBase
 
 from modfire.config import General
 from modfire.utils.registry import HookRegistry
-from modfire.train.trainer import PalTrainer
 from modfire.utils import nop
 
 
@@ -72,27 +71,27 @@ Please see built-in hooks below as examples.
 """
 class BeforeRunHook(abc.ABC):
     @abc.abstractmethod
-    def beforeRun(self, step: int, epoch: int, trainer: PalTrainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
+    def beforeRun(self, step: int, epoch: int, trainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
         raise NotImplementedError
 class AfterRunHook(abc.ABC):
     @abc.abstractmethod
-    def afterRun(self, step: int, epoch: int, trainer: PalTrainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
+    def afterRun(self, step: int, epoch: int, trainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
         raise NotImplementedError
 class EpochStartHook(abc.ABC):
     @abc.abstractmethod
-    def epochStart(self, step: int, epoch: int, trainer: PalTrainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
+    def epochStart(self, step: int, epoch: int, trainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
         raise NotImplementedError
 class EpochFinishHook(abc.ABC):
     @abc.abstractmethod
-    def epochFinish(self, step: int, epoch: int, trainer: PalTrainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
+    def epochFinish(self, step: int, epoch: int, trainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
         raise NotImplementedError
 class StepStartHook(abc.ABC):
     @abc.abstractmethod
-    def stepStart(self, step: int, epoch: int, trainer: PalTrainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
+    def stepStart(self, step: int, epoch: int, trainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
         raise NotImplementedError
 class StepFinishHook(abc.ABC):
     @abc.abstractmethod
-    def stepFinish(self, step: int, epoch: int, trainer: PalTrainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
+    def stepFinish(self, step: int, epoch: int, trainer, *args: Any, logger: Saver, **kwds: Any) -> Any:
         raise NotImplementedError
 
 

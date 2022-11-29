@@ -1,4 +1,5 @@
-import functools
+import math
+from copy import deepcopy
 import os
 import shutil
 from typing import Callable, Tuple
@@ -19,6 +20,7 @@ from vlutils.saver import Saver
 from vlutils.logger import trackingFunctionCalls
 from vlutils.base import Restorable
 from vlutils.runtime import relativePath
+from vlutils.config import summary
 
 import modfire.utils.registry
 from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry
@@ -32,9 +34,18 @@ from modfire.dataset import QuerySet, Database, TrainSet
 from .hooks import EpochFrequencyHook, checkHook
 from .utils import EMATracker, PrettyStep, getSaver
 
+
+class TrainerBuilder(modfire.utils.registry.Registry[Callable[..., "PalTrainer"]]):
+    pass
+
+
 class PalTrainer(Restorable):
     def __init__(self, config: Config, loggingLevel: int):
         super().__init__()
+
+        self._epoch = 0
+        self._step = 0
+
         self.rank = dist.get_rank()
         self.worldSize = dist.get_world_size()
         torch.cuda.set_device(self.rank)
@@ -45,22 +56,28 @@ class PalTrainer(Restorable):
 
         self.saver.debug("<%s> is located at rank `%d`", self.__class__.__name__, self.rank)
 
-        self._epoch = 0
-        self._step = 0
-
         # # Used for self.PrettyStep
         # self.lastFormatted = -1
         self._preRegistration(config, self.saver)
 
         self._model, self.modelFn = self._createModel(self.rank, self.config, self.saver)
         self._criterion, self.criterionFn = self._createCriterion(self.rank, self.config, self.saver)
-        self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self.saver)
+        self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self.worldSize, self.saver)
         self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
 
         self.saver.debug("<%s> created.", self.__class__.__name__)
 
     def save(self, path = None):
         self.saver.save(path, trainer=self, config=self.config.serialize())
+
+    def done(self):
+        self.saver.debug(summary(self.config.serialize()))
+        self.saver.info("Bye.")
+
+    def resume(self, path):
+        self.saver.info("Found ckpt to resume at %s", path)
+        self.restoreStates(path)
+        self.saver.info("Resume training at %d epochs.", self._epoch)
 
     def restoreStates(self, path: StrPath):
         self.saver.debug("Restored state dict from `%s`", path)
@@ -86,7 +103,7 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
 
-        trainSet, database, querySet = self._createDataLoaders(self.config, self.saver)
+        trainSet, database, querySet = self._createDatasets(self.config, self.saver)
 
         datasets = {
             "trainSet": trainSet,
@@ -106,13 +123,11 @@ class PalTrainer(Restorable):
         trainLoader = DataLoader2(trainSet.DataPipe, reading_service=DistributedReadingService())
         self._model.train()
         for images, targets in trainLoader:
-            images = images.cuda(non_blocking=True)
-
             self._stepStart(stepStartHook)
 
             self._optimizer.zero_grad()
-            z = self._model(images)
-            loss = self._criterion(z, targets)
+            z = self._model(images.to(self.rank, non_blocking=True))
+            loss = self._criterion(z, targets.to(self.rank, non_blocking=True))
             loss.backward()
             self._optimizer.step()
 
@@ -150,13 +165,15 @@ class PalTrainer(Restorable):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDataLoaders(config: Config, saver: Saver) -> Tuple[TrainSet, QuerySet, Database]:
+    def _createDatasets(config: Config, saver: Saver) -> Tuple[TrainSet, QuerySet, Database]:
+        saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
         trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSet
+        saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
         querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
+        saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
         database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
         saver.debug("Train and validation datasets mounted.")
         return trainSet, querySet, database
-
 
     @staticmethod
     def _createModel(rank: int, config: Config, saver: Saver) -> Tuple[DistributedDataParallel, Callable[..., nn.Module]]:
@@ -168,10 +185,18 @@ class PalTrainer(Restorable):
         return model, modelFn
 
     @staticmethod
-    def _createOptimizer(config: Config, model: DistributedDataParallel, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
+    def _createOptimizer(config: Config, model: DistributedDataParallel, worldSize: int, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
         saver.debug("Creating optimizer...")
-        optimFn = trackingFunctionCalls(OptimRegistry.get(config.Train.Optim.Key), saver)
-        optimizer = optimFn(model.parameters(), **config.Train.Optim.Params)
+        if "lr" in config.Train.Optim.Params and "batchSize" in config.Train.TrainSet.Params:
+            batchSize = config.Train.TrainSet.Params["batchSize"] * worldSize
+            exponent = math.log2(batchSize)
+            scale = 3 - exponent / 2
+            optimCfg = deepcopy(config.Train.Optim)
+            optimCfg.Params["lr"] /= (2 ** scale)
+        else:
+            optimCfg = config.Train.Optim
+        optimFn = trackingFunctionCalls(OptimRegistry.get(optimCfg.Key), saver)
+        optimizer = optimFn(model.parameters(), **optimCfg.Params)
         saver.debug("Optimizer created.")
         return optimizer, optimFn
 
@@ -192,9 +217,6 @@ class PalTrainer(Restorable):
         return criterion, criterionFn
 
     def _beforeRun(self, hook, *args, **kwArgs):
-        if self.config.Train.CkptPath is not None:
-            self.restoreStates(self.config.Train.CkptPath)
-            self.saver.info("Resume training at %d epochs.", self._epoch)
         self.saver.info("Start training.")
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
@@ -232,6 +254,8 @@ class PalTrainer(Restorable):
 
 class MainTrainer(PalTrainer, SafeTerminate):
     def __init__(self, config: Config, loggingLevel: int):
+        PalTrainer.__init__(self, config, loggingLevel)
+        SafeTerminate.__init__(self, self.saver)
         # Running depedencies
         self.progress = getRichProgress().__enter__()
         self.trainingBar = self.progress.add_task("", start=False, progress="[----/----]", suffix=Consts.CDot * 10)
@@ -241,8 +265,6 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         self.diffTracker = EMATracker((), 0.99).cuda()
 
-        PalTrainer.__init__(self, config, loggingLevel)
-        SafeTerminate.__init__(self, self.saver)
         # Logging and saving
         self.bestmAP = -1
         # Call function at every X epoches.
@@ -262,7 +284,6 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.save(os.path.join(self.saver.SaveDir, "last.ckpt"))
         self.saver.critical("Find the last checkpoint at `%s`", relativePath(os.path.join(self.saver.SaveDir, "last.ckpt")))
         self.summary()
-        self.saver.critical("QUIT.")
 
     def summary(self):
         if self.bestmAP < 0:
@@ -333,7 +354,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         results, summary = self.validator.validate(self._model.module.eval(), database, querySet, self.progress)
 
         for metricModule in metrics.__all__:
-            if metricModule is not "Visualization":
+            if metricModule != "Visualization":
                 # [mAP, Precision, Recall]
                 self.saver.add_scalar(f"Eval/{metricModule}@{self.validator.numReturns}", results[metricModule], global_step=self._step)
         self.saver.add_images(f"Eval/Visualization", results["Visualization"], global_step=self._step)
@@ -352,7 +373,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.debug("End validation at epoch %4d.", self._epoch)
 
 
-
+@TrainerBuilder.register("BaseTrainer")
 def getTrainer(rank: int, config: Config, loggingLevel: int):
     if rank == 0:
         return MainTrainer(config, loggingLevel)

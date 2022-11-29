@@ -13,7 +13,8 @@ except ImportError:
 from vlutils.base import Registry
 
 from modfire.dataset import DatasetRegistry
-
+from modfire.model import ModelRegistry
+from modfire.criterion import CriterionRegistry
 
 __all__ = [
     "ModelRegistry",
@@ -35,12 +36,6 @@ class SchdrRegistry(Registry[Callable[..., _LRScheduler]]):
 class HookRegistry(Registry[Any]):
     pass
 
-class CriterionRegistry(Registry[Callable[..., nn.Module]]):
-    pass
-
-class ModelRegistry(Registry[Callable[..., nn.Module]]):
-    pass
-
 class FunctionRegistry(Registry[Callable]):
     pass
 
@@ -48,7 +43,7 @@ class FunctionRegistry(Registry[Callable]):
 OptimRegistry.register("Adam")(Adam)
 OptimRegistry.register("SGD")(SGD)
 if FusedLAMB is not None:
-    OptimRegistry.register("FusedLAMB")(FusedLAMB)
+    OptimRegistry.register("Lamb")(FusedLAMB)
 
 SchdrRegistry.register("ExponentialLR")(ExponentialLR)
 SchdrRegistry.register("CosineAnnealingWarmRestarts")(CosineAnnealingWarmRestarts)

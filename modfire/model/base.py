@@ -1,14 +1,19 @@
 import abc
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 import enum
 
 from rich.progress import Progress
 import torch
 from torch import nn
 from torchdata.dataloader2 import DataLoader2, MultiProcessingReadingService
+from vlutils.base import Registry
 
 from modfire.dataset import Database, QuerySet
 from .searcher import BinarySearcher, PQSearcher
+
+
+class ModelRegistry(Registry[Callable[..., nn.Module]]):
+    pass
 
 
 class ModelType(enum.Enum):

@@ -3,6 +3,7 @@ import math
 
 import faiss
 import numpy as np
+import rich
 
 
 class Searcher(abc.ABC):
@@ -17,8 +18,8 @@ class Searcher(abc.ABC):
 class BinarySearcher(Searcher):
     def __init__(self, bits: int):
         self.bits = bits
-        if self.bits % 8 != 0 or self.bits % 12 != 0 or self.bits % 16 != 0:
-            raise ValueError(f"Please use (8*N) or (12*N) or (16*N)-bit hash codes. Current: {int(math.log2(bits))}-bit.")
+        if self.bits % 8 != 0 and self.bits % 12 != 0 and self.bits % 16 != 0:
+            raise ValueError(f"Please use (8*N) or (12*N) or (16*N)-bit hash codes. Current: {bits}-bit.")
         self.index = faiss.IndexBinaryFlat(bits)
 
     def add(self, database: np.ndarray, ids: np.ndarray):
@@ -42,7 +43,7 @@ class BinarySearcher(Searcher):
 class PQSearcher(Searcher):
     def __init__(self, codebook: np.ndarray):
         M, K, D = codebook.shape
-        if K != 256 or K != 4096 or K != 65536:
+        if K != 256 and K != 4096 and K != 65536:
             raise ValueError(f"Please use 8,12,16-bit quantization. Current: {int(math.log2(K))}-bit.")
         self.index = faiss.IndexPQ(D * M, M, int(math.log2(K)))
         # Codebook params

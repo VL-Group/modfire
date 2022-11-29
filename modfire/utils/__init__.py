@@ -97,7 +97,7 @@ class SafeTerminate(abc.ABC):
         killer.start()
         self.onTerminate(signum, frame)
 
-        self.logger.critical("[%s] QUIT.")
+        self.logger.critical("QUIT.")
         # reset to default SIGTERM handler
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
         signal.raise_signal(signal.SIGTERM)

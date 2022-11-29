@@ -7,9 +7,8 @@ import torch.nn.functional as F
 from torchvision.models import get_model, get_model_weights
 from vlutils.base import Registry
 
-from modfire.utils import findLastLinear, replaceModule
-
-from .base import PQWrapper
+from .utils import findLastLinear, replaceModule
+from .base import PQWrapper, ModelRegistry
 
 
 _PRETRAINED_MODEL_CLASSES = 1000
@@ -93,7 +92,7 @@ class PQLayer(ABC, nn.Module):
 
 @PQRegistry.register
 class SoftPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
+    def trainableHashFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -102,7 +101,7 @@ class SoftPQ(PQLayer):
 
 @PQRegistry.register
 class SoftSTEPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
+    def trainableHashFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -116,7 +115,7 @@ class SoftSTEPQ(PQLayer):
 
 @PQRegistry.register
 class HardPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
+    def trainableHashFunction(self, x: Tensor, *_) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m]
@@ -131,7 +130,7 @@ class GumbelPQ(PQLayer):
         super().__init__(codebook)
         self._temperature = nn.Parameter(torch.ones((self._m, 1)))
 
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
+    def trainableHashFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -140,6 +139,7 @@ class GumbelPQ(PQLayer):
         return x, hard
 
 
+@ModelRegistry.register
 class PQModel(PQWrapper):
     def __init__(self, m: int, k: int, d: int, intraNormalization: bool, backbone: str, pqMethod: str, *args, **kwArgs):
         super().__init__(m, k, d)

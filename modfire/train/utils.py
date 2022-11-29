@@ -16,7 +16,6 @@ def getSaver(saveDir: StrPath, saveName: StrPath = "saved.ckpt", loggerName: str
 getSaver.__doc__ = Saver.__doc__
 
 
-@staticmethod
 def formatStep(step):
     unit, suffix = filesize.pick_unit_and_suffix(step, ["", "k", "M"], 1000)
     if unit < 10:
@@ -37,12 +36,12 @@ class PrettyStep:
         self._prettyStep = "......"
 
     def __call__(self, step) -> str:
-        if step == self.lastFormatted:
-            return self.prettyStep
+        if step == self._lastFormatted:
+            return self._prettyStep
         else:
-            self.prettyStep = formatStep(step)
-            self.lastFormatted = step
-            return self.prettyStep
+            self._prettyStep = formatStep(step)
+            self._lastFormatted = step
+            return self._prettyStep
 
 class EMATracker(nn.Module):
     def __init__(self, size: Union[torch.Size, List[int], Tuple[int, ...]], momentum: float = 0.9):

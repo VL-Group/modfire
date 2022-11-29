@@ -4,12 +4,19 @@ from typing import Iterator, Any, Union, Tuple
 from PIL import Image
 import torch
 import numpy as np
-from torch.utils.data import IterDataPipe
+from torch.utils.data import IterDataPipe, default_collate
+from torch.utils.data.datapipes.iter import IterableWrapper
 from torchvision.datasets import CIFAR10 as _c10, CIFAR100 as _c100
 
 from .dataset import Database, Dataset, TrainSet, QuerySet
 from .utils import TrainTransform, EvalTransform
 
+
+def trainTransform(inputs):
+    return TrainTransform(Image.fromarray(inputs[0])), inputs[1]
+
+def evalTransform(inputs):
+    return inputs[0], EvalTransform(Image.fromarray(inputs[1]))
 
 class CIFAR(Dataset, abc.ABC):
     def __init__(self, root: str, batchSize: int):
@@ -22,7 +29,7 @@ class CIFAR(Dataset, abc.ABC):
             images = allImages[label == allTargets]
             targets = allTargets[label == allTargets]
             # 1000, 100, 5900 or 100, 10, 590
-            trainSize, querySize = images // 6, images // 60
+            trainSize, querySize = len(images) // 6, len(images) // 60
             train, query, database = images[:trainSize], images[trainSize:(trainSize + querySize)], images[(trainSize + querySize):]
             trainLabel, queryLabel, databaseLabel = targets[:trainSize], targets[trainSize:(trainSize + querySize)], targets[(trainSize + querySize):]
             allTrains.append(train)
@@ -53,30 +60,28 @@ class CIFAR(Dataset, abc.ABC):
 
     @property
     def TrainSet(self) -> TrainSet:
-        class _dataPipe(IterDataPipe):
-            trains = self.allTrains
-            labels = self.allTrainLabels
-            # transform = self.trainTransform
-            # target_transform = self.targetTransform
-            def __iter__(self):
-                for img, target in self.allTrains, self.allTrainLabels:
-                    # doing this so that it is consistent with all other datasets
-                    # to return a PIL Image
-                    img = Image.fromarray(img)
+        # class _dataPipe(IterDataPipe):
+        #     trains = self.allTrains.numpy()
+        #     labels = self.allTrainLabels
+        #     # transform = self.trainTransform
+        #     # target_transform = self.targetTransform
+        #     def __iter__(self):
+        #         for img, target in zip(self.trains, self.labels):
+        #             # doing this so that it is consistent with all other datasets
+        #             # to return a PIL Image
+        #             img = Image.fromarray(img)
 
-                    # if self.transform is not None:
-                    #     img = self.transform(img)
+        #             # if self.transform is not None:
+        #             #     img = self.transform(img)
 
-                    # if self.target_transform is not None:
-                    #     target = self.target_transform(target)
-                    yield img, target
-
-            def __len__(self):
-                return len(self.trains)
+        #             # if self.target_transform is not None:
+        #             #     target = self.target_transform(target)
+        #             yield img, target
         class _trainSet(TrainSet):
-            _pipe = _dataPipe()
             _len = len(self.allTrains)
             _batchSize = self.batchSize
+            _trains = self.allTrains.numpy()
+            _labels = self.allTrainLabels
             def __len__(self):
                 return self._len
             @property
@@ -84,29 +89,31 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return self._pipe.sharding_filter().map(lambda x, y: (TrainTransform(x), y)).shuffle().batch(self._batchSize)
+                return IterableWrapper(zip(self._trains, self._labels)).shuffle().sharding_filter().map(trainTransform).batch(self._batchSize).collate()
         return _trainSet()
 
     @property
     def QuerySet(self) -> QuerySet:
-        class _dataPipe(IterDataPipe):
-            queries = self.allQueries
-            # transform = self.evalTransform
-            def __iter__(self) -> Iterator[Union[int, torch.Tensor]]:
-                for i, img in enumerate(self.queries):
-                    # doing this so that it is consistent with all other datasets
-                    # to return a PIL Image
-                    img = Image.fromarray(img)
+        # class _dataPipe(IterDataPipe):
+        #     queries = self.allQueries.numpy()
+        #     # transform = self.evalTransform
+        #     def __iter__(self) -> Iterator[Union[int, torch.Tensor]]:
+        #         for i, img in enumerate(self.queries):
+        #             # doing this so that it is consistent with all other datasets
+        #             # to return a PIL Image
+        #             img = Image.fromarray(img)
 
-                    # if self.transform is not None:
-                    #     img = self.transform(img)
-                    yield i, img
+        #             # if self.transform is not None:
+        #             #     img = self.transform(img)
+        #             yield i, img
 
         class _querySet(QuerySet):
-            _pipe = _dataPipe()
+            # _pipe = _dataPipe()
             _allQueryLabels = self.allQueryLabels
             _len = len(self.allQueries)
             _batchSize = self.batchSize
+            _queries = self.allQueries.numpy()
+
             def __len__(self):
                 return self._len
             @property
@@ -114,34 +121,33 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return self._pipe.sharding_filter().map(lambda x, y: (EvalTransform(x), y)).batch(self._batchSize)
+                # return self._pipe.sharding_filter().map(lambda idxImg: (idxImg[0], EvalTransform(idxImg[1]))).batch(self._batchSize)
+                return IterableWrapper(zip(range(len(self._queries)), self._queries)).sharding_filter().map(evalTransform).batch(self._batchSize).collate()
             def info(self) -> torch.Tensor:
                 return self._allQueryLabels
         return _querySet()
 
-    def _baseSplit(self) -> IterDataPipe:
-        class _dataPipe(IterDataPipe):
-            database = self.allDatabase
-            # transform = self.evalTransform
-            def __iter__(self) -> Iterator[Union[int, torch.Tensor]]:
-                for i, img in enumerate(self.database):
-                    # doing this so that it is consistent with all other datasets
-                    # to return a PIL Image
-                    img = Image.fromarray(img)
-
-                    # if self.transform is not None:
-                    #     img = self.transform(img)
-                    yield i, img
-
-        return _dataPipe()
-
     @property
     def Database(self) -> Database:
+        # class _dataPipe(IterDataPipe):
+        #     database = self.allDatabase.numpy()
+        #     # transform = self.evalTransform
+        #     def __iter__(self) -> Iterator[Union[int, torch.Tensor]]:
+        #         for i, img in enumerate(self.database):
+        #             # doing this so that it is consistent with all other datasets
+        #             # to return a PIL Image
+        #             img = Image.fromarray(img)
+
+        #             # if self.transform is not None:
+        #             #     img = self.transform(img)
+        #             yield i, img
+
         class _database(Database):
-            _dataPipe = self._baseSplit()
+            # _pipe = _dataPipe()
             _baseLabels = self.allDatabaseLabels
             _len = len(self.allDatabase)
             _batchSize = self.batchSize
+            _database = self.allDatabase.numpy()
             def __len__(self):
                 return self._len
             @property
@@ -149,7 +155,8 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self):
-                return self._dataPipe.sharding_filter().map(lambda x, y: (EvalTransform(x), y)).batch(self._batchSize)
+                # return self._pipe.sharding_filter().map(lambda idxImg: (idxImg[0], EvalTransform(idxImg[1]))).batch(self._batchSize)
+                return IterableWrapper(zip(range(len(self._database)), self._database)).sharding_filter().map(evalTransform).batch(self._batchSize).collate()
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
                 """Return true positives based on query info.
 
@@ -174,7 +181,6 @@ class CIFAR(Dataset, abc.ABC):
 
 class CIFAR10(CIFAR):
     @staticmethod
-    @abc.abstractmethod
     def getAlldata(root, shuffle: bool = True):
         train, test = _c10(root=root, train=True), _c10(root=root, train=False)
         # [n, c, h, w]
@@ -190,7 +196,6 @@ class CIFAR10(CIFAR):
 
 class CIFAR100(CIFAR):
     @staticmethod
-    @abc.abstractmethod
     def getAlldata(root, shuffle: bool = True):
         train, test = _c100(root=root, train=True), _c100(root=root, train=False)
         # [n, c, h, w]
