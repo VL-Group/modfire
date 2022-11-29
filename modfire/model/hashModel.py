@@ -4,8 +4,7 @@ from torch import nn, Tensor
 from torchvision.models import get_model, get_model_weights
 from vlutils.base import Registry
 
-from modfire.utils import findLastLinear, replaceModule
-
+from .utils import findLastLinear, replaceModule
 from .base import BinaryWrapper
 
 
@@ -66,6 +65,7 @@ class LogitHash(nn.Module):
 class HashModel(BinaryWrapper):
     def __init__(self, bits: int, backbone: str, hashMethod: str, *args, **kwArgs):
         super().__init__(bits)
+        self._backboneName = backbone
         self._backbone = Backbone(bits, backbone)
         self._hashMethod = HashRegistry.get(hashMethod)(*args, **kwArgs)
 
@@ -76,3 +76,6 @@ class HashModel(BinaryWrapper):
     def encode(self, image: Tensor):
         h = self(image)
         return self.boolToByte(h)
+
+    def summary(self) -> str:
+        return "_".join(map(str, [self.Type, self._backboneName, self.bits]))

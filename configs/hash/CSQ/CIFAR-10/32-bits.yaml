@@ -1,0 +1,47 @@
+# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/McQuic/main/configs/schema.json"
+model:
+  key: HashModel
+  params:
+    bits: 32
+    backbone: resnet-50
+    hashMethod: LogitHash
+train:
+  epoch: 100
+  valFreq: 1
+  numReturns: -1
+  trainSet:
+    key: CIFAR10
+    params:
+      root: data/cifar10/
+      batchSize: 128
+  querySet:
+    key: CIFAR10
+    params:
+      root: data/cifar10/
+      batchSize: 128
+  database:
+    key: CIFAR10
+    params:
+      root: data/cifar10/
+      batchSize: 128
+  saveDir: saved
+  criterion:
+    key: CSQ
+    params:
+      numClasses: 10
+  externalLib: []
+    # - some/modules/to/be/registered1.py
+    # - some/modules/to/be/registered2.py
+  optim:
+    key: Lamb
+    params:
+      lr: 1.e-3
+  schdr:
+    key: CosineAnnealingLR
+    params:
+      T_max: 100
+      eta_min: 1.e-8
+  gpu:
+    gpus: 1
+    vRam: -1
+    wantsMore: false

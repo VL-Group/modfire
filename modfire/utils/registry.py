@@ -3,7 +3,7 @@ from typing import Callable,Any
 
 from torch import nn
 from torch.optim import Adam, SGD, Optimizer
-from torch.optim.lr_scheduler import _LRScheduler, ExponentialLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau
+from torch.optim.lr_scheduler import _LRScheduler, ExponentialLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau, CosineAnnealingLR
 try:
     from apex.optimizers import FusedLAMB
     FusedLAMB = FusedLAMB
@@ -52,4 +52,5 @@ if FusedLAMB is not None:
 
 SchdrRegistry.register("ExponentialLR")(ExponentialLR)
 SchdrRegistry.register("CosineAnnealingWarmRestarts")(CosineAnnealingWarmRestarts)
+SchdrRegistry.register("CosineAnnealingLR")(CosineAnnealingLR)
 SchdrRegistry.register("ReduceLROnPlateau")(ReduceLROnPlateau)

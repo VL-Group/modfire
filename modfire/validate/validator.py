@@ -9,13 +9,12 @@ from modfire.dataset import Database, QuerySet
 from .metrics import mAP, Precision, Recall, Visualization
 
 class Validator:
-    def __init__(self, config: Config):
-        self.config = config
-        self.numReturns = config.Train.NumReturns
+    def __init__(self, numReturns: int):
+        self.numReturns = numReturns
         self._meter = Meters(handlers=[
-            mAP(config.Train.NumReturns),
-            Precision(config.Train.NumReturns),
-            Recall(config.Train.NumReturns),
+            mAP(numReturns),
+            Precision(numReturns),
+            Recall(numReturns),
             Visualization()
         ])
 
@@ -24,8 +23,8 @@ class Validator:
         model.eval()
         self._meter.reset()
 
-        model.add(database.DataPipe, progress)
-        queryIndices, rankList = model.search(queries.DataPipe, self.numReturns, progress)
+        model.add(database, progress)
+        queryIndices, rankList = model.search(queries, self.numReturns, progress)
         truePositives, numAllTrues = database.judge(queries.info(queryIndices), rankList)
         self._meter(truePositives, numAllTrues)
         return self._meter.results(), self._meter.summary()

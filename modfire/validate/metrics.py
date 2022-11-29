@@ -2,19 +2,34 @@ from typing import List
 
 import torch
 from vlutils.metrics.meter import Handler
+from torchvision.io.image import write_png
 
+__all__ = [
+    "mAP",
+    "Precision",
+    "Recall",
+    "Visualization"
+]
 
 class RankListBasedMetric(Handler):
     def __init__(self, numReturns: int, format: str = r"%.2f"):
         super().__init__(format)
         self._numReturns = numReturns
+    def __repr__(self) -> str:
+        return self.MetricInfo + ": " + str(self)
+
     def check(self, truePositives: torch.Tensor):
         if self._numReturns > truePositives.shape[-1]:
             raise ValueError(f"Returned rank list has fewer samples than numReturns. (expected: {self._numReturns}, actual: {truePositives.shape[-1]})")
+        elif self._numReturns < 0:
+            return truePositives.float()
         return truePositives[:, :self._numReturns].float()
 
 
 class mAP(RankListBasedMetric):
+    @property
+    def MetricInfo(self):
+        return f"mAP@{self._numReturns}"
     def handle(self, truePositives: torch.Tensor, *_, **__) -> List[float]:
         truePositives = self.check(truePositives)
         # [K]
@@ -27,12 +42,22 @@ class mAP(RankListBasedMetric):
 
 
 class Precision(RankListBasedMetric):
+    @property
+    def MetricInfo(self):
+        return f"P@{self._numReturns}"
     def handle(self, truePositives: torch.Tensor, *_, **__) -> List[float]:
         truePositives = self.check(truePositives)
         return (truePositives.sum(-1) / truePositives.shape[-1]).tolist()
 
 
 class Recall(RankListBasedMetric):
+    @property
+    def MetricInfo(self):
+        return f"R@{self._numReturns}"
     def handle(self, truePositives: torch.Tensor, numAllTrues: torch.Tensor) -> List[float]:
         truePositives = self.check(truePositives)
         return (truePositives.sum(-1) / numAllTrues).tolist()
+
+
+class Visualization(Handler):
+    pass

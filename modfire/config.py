@@ -31,21 +31,20 @@ class GPUSchema(Schema):
 class TrainSchema(Schema):
     class Meta:
         unknown = RAISE
-    batchSize = fields.Int(required=True, description="Batch size for training. NOTE: The actual batch size (whole world) is computed by `batchSize * gpus`.", exclusiveMinimum=0)
     epoch = fields.Int(required=True, description="Total training epochs.", exclusiveMinimum=0)
     valFreq = fields.Int(required=True, description="Run validation after every `valFreq` epochs.", exclusiveMinimum=0)
+    numReturns = fields.Int(required=True, description="Rank list return number of samples.", exclusiveMinimum=0)
     trainSet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for training.")
     database = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution database.")
     querySet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution query.")
     saveDir = fields.Str(required=True, description="A dir path to save model checkpoints, TensorBoard messages and logs.")
     ckptPath = fields.Str(required=True, description="Path to restore model ckpt for warm training.")
-    debug = fields.Bool(required=True, description="Debug mode flag.")
+    criterion = fields.Nested(GeneralSchema(), required=True, description="Loss function used for training.")
     optim = fields.Nested(GeneralSchema(), required=True, description="Optimizer used for training. As for current we have `Adam` and `Lamb`.")
     schdr = fields.Nested(GeneralSchema(), required=True, description="Learning rate scheduler used for training. As for current we have `ReduceLROnPlateau`, `Exponential`, `MultiStep`, `OneCycle` and all schedulers defined in `mcquic.train.lrSchedulers`.")
     gpu = fields.Nested(GPUSchema(), required=True, description="GPU configs for training.")
     hooks = fields.List(fields.Nested(GeneralSchema()), required=False, description="Hooks used for training. Key is used to retrieve hook from `LBHash.train.hooks`.")
     externalLib = fields.List(fields.Str(), required=False, allow_none=True, description="External libraries used for training. All python files in `externalLib` will be imported as modules. In this way, you could extend registries.")
-    criterion = fields.Nested(GeneralSchema(), required=True, description="Loss function used for training.")
 
     @post_load
     def _(self, data, **kwargs):
@@ -54,13 +53,24 @@ class TrainSchema(Schema):
 class ConfigSchema(Schema):
     class Meta:
         unknown = RAISE
-    model = fields.Nested(GeneralSchema(), required=True, description="Hashing model to use. Avaliable params are `backbone`, `bits` and `hashMethod`.")
+    model = fields.Nested(GeneralSchema(), required=True, description="Model to use. Avaliable params are e.g. `backbone`, `bits` and `hashMethod`.")
     train = fields.Nested(TrainSchema(), required=True, description="Training configs.")
 
     @post_load
     def _(self, data, **kwargs):
         return Config(**data)
 
+
+class TestConfigSchema(Schema):
+    class Meta:
+        unknown = RAISE
+    numReturns = fields.Int(required=True, description="Rank list return number of samples.", exclusiveMinimum=0)
+    database = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution database.")
+    querySet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution query.")
+
+    @post_load
+    def _(self, data, **kwargs):
+        return TestConfig(**data)
 
 
 @dataclass
@@ -107,8 +117,8 @@ class Train:
     optim: General
     schdr: General
     criterion: General
-    debug: bool
     ckptPath: str
+    numReturns: int
     gpu: GPU
     hooks: Optional[List[General]] = None
     externalLib: Optional[List[str]] = None
@@ -124,6 +134,10 @@ class Train:
     @property
     def ValFreq(self) -> int:
         return self.valFreq
+
+    @property
+    def NumReturns(self) -> int:
+        return self.numReturns
 
     @property
     def TrainSet(self) -> General:
@@ -207,5 +221,34 @@ class Config:
 
     @staticmethod
     def deserialize(data: dict) -> "Config":
+        # patch for the speical "$schema" key in json
         data = { key: value for key, value in data.items() if "$" not in key }
         return ConfigSchema().load(data)
+
+
+@dataclass
+class TestConfig:
+    querySet: General
+    database: General
+    numReturns: int
+
+    @property
+    def QuerySet(self) -> General:
+        return self.querySet
+
+    @property
+    def Database(self) -> General:
+        return self.database
+
+    @property
+    def NumReturns(self) -> int:
+        return self.numReturns
+
+    def serialize(self) -> dict:
+        return TestConfigSchema().dump(self)
+
+    @staticmethod
+    def deserialize(data: dict) -> "TestConfig":
+        # patch for the speical "$schema" key in json
+        data = { key: value for key, value in data.items() if "$" not in key }
+        return TestConfigSchema().load(data)

@@ -1,7 +1,7 @@
 import functools
 import os
 import shutil
-from typing import Callable, Optional, Tuple, Type, Any
+from typing import Callable, Tuple
 import gc
 import pathlib
 import hashlib
@@ -11,8 +11,8 @@ import sys
 import torch
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from torch.utils.data import DataLoader
 from torch import distributed as dist
+from torchdata.dataloader2 import DataLoader2, DistributedReadingService
 from vlutils.base import Registry
 from vlutils.base.freqHook import ChainHook
 from vlutils.saver import Saver
@@ -21,12 +21,12 @@ from vlutils.base import Restorable
 from vlutils.runtime import relativePath
 
 import modfire.utils.registry
+from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry
 from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
-from modfire.validate import Validator
+from modfire.validate import Validator, metrics
 from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate
-from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry
 from modfire.dataset import QuerySet, Database, TrainSet
 
 from .hooks import EpochFrequencyHook, checkHook
@@ -96,15 +96,14 @@ class PalTrainer(Restorable):
 
         self._beforeRun(beforeRunHook, **datasets)
 
-        for i in range(self._epoch, self.config.Train.Epoch):
+        for _ in range(self._epoch, self.config.Train.Epoch):
             self._epochStart(epochStartHook, **datasets)
-            trainLoader.sampler.set_epoch(i)
             self._runAnEpoch(stepStartHook, stepFinishHook, **datasets)
             self._epochFinish(epochFinishHook, **datasets)
         self._afterRun(afterRunHook)
 
-    def _runAnEpoch(self, stepStartHook, stepFinishHook, **datasets):
-        trainSet = datasets["trainSet"]
+    def _runAnEpoch(self, stepStartHook, stepFinishHook, trainSet: TrainSet, **__):
+        trainLoader = DataLoader2(trainSet.DataPipe, reading_service=DistributedReadingService())
         self._model.train()
         for images, targets in trainLoader:
             images = images.cuda(non_blocking=True)
@@ -151,8 +150,12 @@ class PalTrainer(Restorable):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDataLoaders(config: Config, saver: Saver):
+    def _createDataLoaders(config: Config, saver: Saver) -> Tuple[TrainSet, QuerySet, Database]:
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSet
+        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
+        database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
         saver.debug("Train and validation datasets mounted.")
+        return trainSet, querySet, database
 
 
     @staticmethod
@@ -234,7 +237,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.trainingBar = self.progress.add_task("", start=False, progress="[----/----]", suffix=Consts.CDot * 10)
         self.epochBar = self.progress.add_task("[----/----]", start=False, progress="", suffix=Consts.CDot * 10)
 
-        self.validator = Validator(self.config)
+        self.validator = Validator(self.config.Train.NumReturns)
 
         self.diffTracker = EMATracker((), 0.99).cuda()
 
@@ -293,8 +296,8 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.add_scalar(f"Stat/Loss", loss, global_step=self._step)
         self.saver.add_scalar("Stat/Lr", self._scheduler.get_last_lr()[0], global_step=self._step)
 
-    def _epochStart(self, hook, *args, trainSet, **kwArgs):
-        totalBatches = len(trainSet)
+    def _epochStart(self, hook, *args, trainSet: TrainSet, **kwArgs):
+        totalBatches = len(trainSet) // self.worldSize
         self.progress.update(self.trainingBar, total=totalBatches)
         self.progress.update(self.epochBar, total=self.config.Train.Epoch * totalBatches, completed=self._step, description=f"[{self._epoch + 1:4d}/{self.config.Train.Epoch:4d}]")
 
@@ -329,9 +332,10 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         results, summary = self.validator.validate(self._model.module.eval(), database, querySet, self.progress)
 
-        self.saver.add_scalar(f"Eval/mAP@{self.validator.numReturns}", results["mAP"], global_step=self._step)
-        self.saver.add_scalar(f"Eval/Recall@{self.validator.numReturns}", results["Recall"], global_step=self._step)
-        self.saver.add_scalar(f"Eval/Precision@{self.validator.numReturns}", results["Precision"], global_step=self._step)
+        for metricModule in metrics.__all__:
+            if metricModule is not "Visualization":
+                # [mAP, Precision, Recall]
+                self.saver.add_scalar(f"Eval/{metricModule}@{self.validator.numReturns}", results[metricModule], global_step=self._step)
         self.saver.add_images(f"Eval/Visualization", results["Visualization"], global_step=self._step)
 
         self.save()

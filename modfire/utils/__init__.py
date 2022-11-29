@@ -1,10 +1,9 @@
-from ._api import findLastLinear, replaceModule
-
 import logging
+import warnings
 import os
 import signal
-from typing import List, Optional, Union, Any, Dict, Tuple
-from pathlib import Path
+from typing import Optional
+from distutils.version import StrictVersion
 import hashlib
 from time import sleep
 import threading
@@ -13,14 +12,13 @@ import abc
 from vlutils.logger import LoggerBase
 from vlutils.custom import RichProgress
 from vlutils.saver import StrPath
-from vlutils.base import FrequecyHook
-import torch
 from torch import nn
 from rich import filesize
 from rich.progress import Progress
 from rich.progress import TimeElapsedColumn, BarColumn, TimeRemainingColumn
 
 from modfire import Consts
+import modfire
 
 
 def nop(*_, **__):
@@ -59,6 +57,24 @@ def hashOfFile(path: StrPath, progress: Optional[Progress] = None):
 
     hashResult = sha256.hexdigest()
     return hashResult
+
+def versionCheck(versionStr: str):
+    version = StrictVersion(versionStr)
+    builtInVersion = StrictVersion(modfire.__version__)
+
+    if builtInVersion < version:
+        raise ValueError(f"Version too new. Given {version}, but I'm {builtInVersion} now.")
+
+    major, minor, revision = version.version
+
+    bMajor, bMinor, bRev = builtInVersion.version
+
+    if major != bMajor:
+        raise ValueError(f"Major version mismatch. Given {version}, but I'm {builtInVersion} now.")
+
+    if minor != bMinor:
+        warnings.warn(f"Minor version mismatch. Given {version}, but I'm {builtInVersion} now.")
+    return True
 
 def getRichProgress(disable: bool = False) -> RichProgress:
     return RichProgress("[i blue]{task.description}[/][b magenta]{task.fields[progress]}", TimeElapsedColumn(), BarColumn(None), TimeRemainingColumn(), "{task.fields[suffix]}", refresh_per_second=6, transient=True, disable=disable, expand=True)

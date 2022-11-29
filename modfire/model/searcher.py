@@ -1,8 +1,8 @@
 import abc
+import math
 
 import faiss
 import numpy as np
-import math
 
 
 class Searcher(abc.ABC):
@@ -33,6 +33,8 @@ class BinarySearcher(Searcher):
             raise ValueError("Query array must be encoded to uint8.")
         if len(query.shape) != 2 or query.shape[-1] != self.bits // 8:
             raise ValueError(f"Query shape wrong. Expect: [N, {self.bits // 8}]. Got: {[query.shape]}.")
+        if numReturns < 0:
+            numReturns = len(faiss.vector_to_array(self.index.xb))
         _, indices = self.index.search(query, numReturns)
         return indices
 
@@ -64,5 +66,7 @@ class PQSearcher(Searcher):
     def search(self, query: np.ndarray, numReturns: int) -> np.ndarray:
         if len(query.shape) != 2 or query.shape[-1] != self.D:
             raise ValueError(f"Query shape wrong. Expect: [N, {self.D}]. Got: {[query.shape]}.")
+        if numReturns < 0:
+            numReturns = len(self.index.codes) // self.index.code_size
         _, indices = self.index.search(query, numReturns)
         return indices

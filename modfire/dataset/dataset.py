@@ -2,14 +2,24 @@ from typing import Any, Tuple
 import abc
 
 import torch
-from torch.utils.data import IterDataPipe, MapDataPipe
+from torch.utils.data import IterDataPipe
 
 
 class TrainSet(abc.ABC):
     @property
     @abc.abstractmethod
-    def DataPipe(self) -> MapDataPipe:
+    def DataPipe(self) -> IterDataPipe:
         raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def BatchSize(self) -> int:
+        raise NotImplementedError
+
+    def __len__(self):
+        """If it is too big to determine dataset length, return -1
+        """
+        return -1
 
 
 class QuerySet(abc.ABC):
@@ -23,6 +33,16 @@ class QuerySet(abc.ABC):
             IterDataPipe
         """
         raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def BatchSize(self) -> int:
+        raise NotImplementedError
+
+    def __len__(self):
+        """If it is too big to determine dataset length, return -1
+        """
+        return -1
 
     @abc.abstractmethod
     def info(self, indices) -> Any:
@@ -47,6 +67,16 @@ class Database(abc.ABC):
             IterDataPipe
         """
         raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def BatchSize(self) -> int:
+        raise NotImplementedError
+
+    def __len__(self):
+        """If it is too big to determine dataset length, return -1
+        """
+        return -1
 
     @abc.abstractmethod
     def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:

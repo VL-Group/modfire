@@ -1,3 +1,4 @@
+from typing import Tuple
 from abc import ABC, abstractmethod
 
 import torch
@@ -81,8 +82,9 @@ class PQLayer(ABC, nn.Module):
     def trainablePQFunction(self, x: Tensor, *args, **kwargs) -> Tensor:
         raise NotImplementedError
 
-    def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
+    def forward(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]:
         if self.training:
+            # NOTE: Due to the asymmertric distance computation, we need to return x and q simultaneously for training.
             return self.trainablePQFunction(x, *args, **kwargs)
         else:
             # ** IMPORTANT **: The real quantization happens on the inner PQDatabase in PQModel during indexing.
@@ -91,16 +93,16 @@ class PQLayer(ABC, nn.Module):
 
 @PQRegistry.register
 class SoftPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tensor:
+    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
         logit = (-distance / temperature).softmax(-1)
-        return torch.einsum("nmk,mkd->nmd", logit, self.codebook).reshape(x.shape)
+        return x, torch.einsum("nmk,mkd->nmd", logit, self.codebook).reshape(x.shape)
 
 @PQRegistry.register
 class SoftSTEPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tensor:
+    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -110,18 +112,18 @@ class SoftSTEPQ(PQLayer):
         hard = distance.argmin(-1)
         hard = F.one_hot(hard, num_classes=self._k)
         hard = torch.einsum("nmk,mkd->nmd", hard, self.codebook).reshape(x.shape)
-        return (hard - soft).detach() + soft
+        return x, (hard - soft).detach() + soft
 
 @PQRegistry.register
 class HardPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tensor:
+    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m]
         hard = distance.argmin(-1)
         hard = F.one_hot(hard, num_classes=self._k)
         hard = torch.einsum("nmk,mkd->nmd", hard, self.codebook).reshape(x.shape)
-        return (hard - x).detach() + x
+        return x, (hard - x).detach() + x
 
 @PQRegistry.register
 class GumbelPQ(PQLayer):
@@ -129,13 +131,13 @@ class GumbelPQ(PQLayer):
         super().__init__(codebook)
         self._temperature = nn.Parameter(torch.ones((self._m, 1)))
 
-    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tensor:
+    def trainableHashFunction(self, x: Tensor, temperature: float) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
         hard = F.gumbel_softmax(-distance * self._temperature, temperature, hard=True)
         hard = torch.einsum("nmk,mkd->nmd", hard, self.codebook).reshape(x.shape)
-        return hard
+        return x, hard
 
 
 class PQModel(PQWrapper):
