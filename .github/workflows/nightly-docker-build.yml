@@ -1,0 +1,70 @@
+name: Build docker on main branch every day
+
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+on:
+  schedule:
+    # The actual run time usually delays for 2~3 hours
+    - cron:  "36 4 * * *"
+  workflow_dispatch:
+    inputs: {}
+
+jobs:
+  check-today-has-commit-and-build-docker:
+    runs-on: ubuntu-latest
+    outputs:
+      check-result: ${{ steps.check-commit.outputs.check-result }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.9'
+      - name: Check today has commits
+        id: check-commit
+        run: |
+          python -m pip install GitPython
+          echo "::set-output name=check-result::$(python ci/pre_build/check_today_has_commit.py)"
+      - name: Log in to the Container registry
+        if: ${{ steps.check-commit.outputs.check-result == 'true' }}
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ steps.check-commit.outputs.check-result == 'true' }}
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      - name: Build and push Docker image
+        if: ${{ steps.check-commit.outputs.check-result == 'true' }}
+        uses: docker/build-push-action@v2
+        with:
+          context: ./docker
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+  test-docker:
+    needs: [check-today-has-commit-and-build-docker]
+    if: ${{ needs.check-today-has-commit-and-build-docker.outputs.check-result == 'true' }}
+    runs-on: ubuntu-latest
+    container: ghcr.io/xiaosu-zhu/modfire:nightly
+    steps:
+      - run: |
+          modfire --help
+          modfire train --help
+          modfire validate --help
+          modfire dataset --help
+          modfire-train --help
+          modfire-validate --help
+          modfire-dataset --help

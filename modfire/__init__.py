@@ -10,7 +10,7 @@ class ConstsMetaClass(type):
     def TempDir(cls):
         if getattr(cls, '_tempDir', None) is None:
             tempDir = os.path.dirname(tempfile.mktemp())
-            tempDir = os.path.join(tempDir, "mcquic")
+            tempDir = os.path.join(tempDir, "modfire")
             cls._tempDir = tempDir
             os.makedirs(cls._tempDir, exist_ok=True)
             def removeTmp():
@@ -19,9 +19,9 @@ class ConstsMetaClass(type):
         return cls._tempDir
 
 class Consts(metaclass=ConstsMetaClass):
-    Name = "mcquic"
+    Name = "modfire"
     # lazy load
-    # TempDir = "/tmp/mcquic/"
+    # TempDir = "/tmp/modfire/"
     Eps = 1e-6
     CDot = "·"
     TimeOut = 15

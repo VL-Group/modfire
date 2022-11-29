@@ -1,0 +1,19 @@
+name: Update schema.json and docs based on modfire.config.ConfigSchema
+
+on:
+  push:
+    branches: [main]
+    paths: ['modfire/config.py']
+
+jobs:
+  update-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate schema.json
+        run: |
+          pip install marshmallow-jsonschema json-schema-for-humans
+          python ci/pre_commit/generate_schema.py modfire/config.py configs/schema.json configs/schema.md
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Auto update config schema and configs/schema.md

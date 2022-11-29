@@ -1,4 +1,4 @@
-# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/McQuic/main/configs/schema.json"
+# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/modfire/main/configs/schema.json"
 model:
   key: HashModel
   params:
