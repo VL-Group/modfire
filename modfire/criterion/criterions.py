@@ -16,21 +16,23 @@ class CriterionRegistry(Registry[Callable[..., nn.Module]]):
 @CriterionRegistry.register
 class CSQ(nn.Module):
     centroids: torch.Tensor
-    def __init__(self, bits: int, numClasses: int) -> None:
+    def __init__(self, bits: int, numClasses: int, _lambda: float = 1e-4) -> None:
         super().__init__()
         self.register_buffer("centroids", self.generateCentroids(bits, numClasses))
+        self._lambda = _lambda
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         # [N, C]
-        logits = x @ self.centroids.T
-        return F.cross_entropy(logits, y)
+        centerLoss = F.binary_cross_entropy_with_logits(x, y.float() @ self.centroids)
+        quantizationError = F.mse_loss(x.tanh(), x.sign())
+        return centerLoss + quantizationError
 
     @staticmethod
     def generateCentroids(bits: int, numClasses: int):
         if numClasses > 2 * bits:
-            return CSQ._randomCode(bits, numClasses).float() * 2 - 1
+            return CSQ._randomCode(bits, numClasses).float()
         else:
-            return CSQ._hadamardCode(bits, numClasses).float() * 2 - 1
+            return CSQ._hadamardCode(bits, numClasses).float()
 
     @staticmethod
     def _randomCode(bits: int, numClasses: int) -> torch.Tensor:

@@ -33,6 +33,8 @@ class TrainSchema(Schema):
         unknown = RAISE
     epoch = fields.Int(required=True, description="Total training epochs.", exclusiveMinimum=0)
     valFreq = fields.Int(required=True, description="Run validation after every `valFreq` epochs.", exclusiveMinimum=0)
+    modelEMASteps = fields.Int(required=True, description="From where we will apply EMA on model.", exclusiveMinimum=0)
+    modelEMADecay = fields.Float(required=True, description="AverageModel's decay.")
     numReturns = fields.Int(required=True, description="Rank list return number of samples.", exclusiveMinimum=0)
     trainSet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for training.")
     database = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution database.")
@@ -109,6 +111,8 @@ class Train:
     epoch: int
     valFreq: int
     trainer: str
+    modelEMASteps: int
+    modelEMADecay: float
     trainSet: General
     database: General
     querySet: General
@@ -128,6 +132,14 @@ class Train:
     @property
     def ValFreq(self) -> int:
         return self.valFreq
+
+    @property
+    def ModelEMADecay(self) -> float:
+        return self.modelEMADecay
+
+    @property
+    def ModelEMASteps(self) -> int:
+        return self.modelEMASteps
 
     @property
     def Trainer(self) -> str:

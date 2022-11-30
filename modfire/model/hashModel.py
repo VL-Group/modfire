@@ -41,7 +41,7 @@ class HashLayer(ABC, nn.Module):
         if self.training:
             return self.trainableHashFunction(h, *args, **kwargs)
         else:
-            return h.sign() > 0
+            return h > 0
 
 
 @HashRegistry.register

@@ -18,6 +18,10 @@ class RankListBasedMetric(Handler):
     def __repr__(self) -> str:
         return self.MetricInfo + ": " + str(self)
 
+    @property
+    def MetricInfo(self):
+        raise NotImplementedError
+
     def check(self, truePositives: torch.Tensor):
         if self._numReturns > truePositives.shape[-1]:
             raise ValueError(f"Returned rank list has fewer samples than numReturns. (expected: {self._numReturns}, actual: {truePositives.shape[-1]})")
@@ -29,7 +33,11 @@ class RankListBasedMetric(Handler):
 class mAP(RankListBasedMetric):
     @property
     def MetricInfo(self):
-        return f"mAP@{self._numReturns}"
+        if self._numReturns < 0:
+            numReturns = "all"
+        else:
+            numReturns = str(self._numReturns)
+        return f"mAP@{numReturns}"
     def handle(self, truePositives: torch.Tensor, *_, **__) -> List[float]:
         truePositives = self.check(truePositives)
         # [K]
@@ -37,14 +45,18 @@ class mAP(RankListBasedMetric):
         # [N, K]
         accumulated = truePositives.cumsum(-1)
         # [N]
-        ap = (base / accumulated).sum(-1) / truePositives.sum(-1).clamp_min_(1.0)
+        ap = (accumulated / base * truePositives).sum(-1) / truePositives.sum(-1).clamp_min_(1.0)
         return ap.tolist()
 
 
 class Precision(RankListBasedMetric):
     @property
     def MetricInfo(self):
-        return f"P@{self._numReturns}"
+        if self._numReturns < 0:
+            numReturns = "all"
+        else:
+            numReturns = str(self._numReturns)
+        return f"P@{numReturns}"
     def handle(self, truePositives: torch.Tensor, *_, **__) -> List[float]:
         truePositives = self.check(truePositives)
         return (truePositives.sum(-1) / truePositives.shape[-1]).tolist()
@@ -53,7 +65,11 @@ class Precision(RankListBasedMetric):
 class Recall(RankListBasedMetric):
     @property
     def MetricInfo(self):
-        return f"R@{self._numReturns}"
+        if self._numReturns < 0:
+            numReturns = "all"
+        else:
+            numReturns = str(self._numReturns)
+        return f"R@{numReturns}"
     def handle(self, truePositives: torch.Tensor, numAllTrues: torch.Tensor) -> List[float]:
         truePositives = self.check(truePositives)
         return (truePositives.sum(-1) / numAllTrues).tolist()

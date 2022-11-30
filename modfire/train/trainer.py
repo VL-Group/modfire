@@ -2,7 +2,7 @@ import math
 from copy import deepcopy
 import os
 import shutil
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Dict, Union
 import gc
 import pathlib
 import hashlib
@@ -33,6 +33,7 @@ from modfire.dataset import QuerySet, Database, TrainSet
 
 from .hooks import EpochFrequencyHook, checkHook
 from .utils import EMATracker, PrettyStep, getSaver
+from .ema import ExponentialMovingAverage
 
 
 class TrainerBuilder(modfire.utils.registry.Registry[Callable[..., "PalTrainer"]]):
@@ -54,13 +55,15 @@ class PalTrainer(Restorable):
         prettyStep = PrettyStep()
         self.saver.decorate(lambda: prettyStep(self._step))
 
+        self.saver.info("Here is the whole config during this run: \r\n%s", summary(config.serialize()))
+
         self.saver.debug("<%s> is located at rank `%d`", self.__class__.__name__, self.rank)
 
         # # Used for self.PrettyStep
         # self.lastFormatted = -1
         self._preRegistration(config, self.saver)
 
-        self._model, self.modelFn = self._createModel(self.rank, self.config, self.saver)
+        self._model, self._modelEMA = self._createModel(self.rank, self.worldSize, self.config, self.saver)
         self._criterion, self.criterionFn = self._createCriterion(self.rank, self.config, self.saver)
         self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self.worldSize, self.saver)
         self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
@@ -103,24 +106,20 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
 
-        trainSet, querySet, database  = self._createDatasets(self.config, self.saver)
+        datasets = self._createDatasets(self.config, self.saver)
 
-        datasets = {
-            "trainSet": trainSet,
-            "database": database,
-            "querySet": querySet
-        }
+        with DataLoader2(datasets["trainSet"].DataPipe, reading_service=DistributedReadingService()) as trainLoader:
 
-        self._beforeRun(beforeRunHook, **datasets)
+            self._beforeRun(beforeRunHook, **datasets)
 
-        for _ in range(self._epoch, self.config.Train.Epoch):
-            self._epochStart(epochStartHook, **datasets)
-            self._runAnEpoch(stepStartHook, stepFinishHook, **datasets)
-            self._epochFinish(epochFinishHook, **datasets)
-        self._afterRun(afterRunHook)
+            for _ in range(self._epoch, self.config.Train.Epoch):
+                self._epochStart(epochStartHook, **datasets)
+                self._runAnEpoch(stepStartHook, stepFinishHook, trainLoader)
+                self._epochFinish(epochFinishHook, **datasets)
+            self._afterRun(afterRunHook)
 
-    def _runAnEpoch(self, stepStartHook, stepFinishHook, trainSet: TrainSet, **__):
-        trainLoader = DataLoader2(trainSet.DataPipe, reading_service=DistributedReadingService())
+
+    def _runAnEpoch(self, stepStartHook, stepFinishHook, trainLoader: DataLoader2, **__):
         self._model.train()
         for images, targets in trainLoader:
             self._stepStart(stepStartHook)
@@ -165,24 +164,38 @@ class PalTrainer(Restorable):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Tuple[TrainSet, QuerySet, Database]:
+    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSet, QuerySet, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
         trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSet
-        saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
-        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
-        saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
-        database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
-        saver.debug("Train and validation datasets mounted.")
-        return trainSet, querySet, database
+        # saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
+        # querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
+        # saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
+        # database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
+        # saver.debug("Train and validation datasets mounted.")
+        saver.debug("Training dataset mounted.")
+        return {
+            "trainSet": trainSet,
+            # "database": database,
+            # "querySet": querySet
+        }
 
     @staticmethod
-    def _createModel(rank: int, config: Config, saver: Saver) -> Tuple[DistributedDataParallel, Callable[..., nn.Module]]:
+    def _createModel(rank: int, worldSize: int, config: Config, saver: Saver) -> Tuple[DistributedDataParallel, ExponentialMovingAverage]:
         saver.debug("Creating model...")
         modelFn = trackingFunctionCalls(ModelRegistry.get(config.Model.Key), saver)
         model = modelFn(**config.Model.Params)
+
+        # EMA model for evaluation
+        adjust = worldSize * config.Train.TrainSet.Params["batchSize"] * config.Train.ModelEMASteps / config.Train.Epoch
+        alpha = 1.0 - config.Train.ModelEMADecay
+        alpha = min(1.0, alpha * adjust)
+        modelEMA = ExponentialMovingAverage(model, device=rank, decay=1.0 - alpha)
+        # EMA model for evaluation
+
         model = DistributedDataParallel(model.to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         saver.debug("Model created. Size: %s.", totalParameters(model))
-        return model, modelFn
+        return model, modelEMA
 
     @staticmethod
     def _createOptimizer(config: Config, model: DistributedDataParallel, worldSize: int, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
@@ -232,6 +245,14 @@ class PalTrainer(Restorable):
 
     def _stepFinish(self, hook, *args, loss, **kwArgs):
         self._step += 1
+
+        # Update AveragedModel
+        if self._step % self.config.Train.ModelEMASteps == 0:
+            self._modelEMA.update_parameters(self._model)
+            if "warmupEpochs" in self.config.Train.Schdr.Params and self._epoch < self.config.Train.Schdr.Params["warmupEpochs"]:
+                # Reset ema buffer to keep copying weights during warmup period
+                self._modelEMA.n_averaged.fill_(0)
+
         hook(self._step, self._epoch, self, *args, logger=self.saver, loss=loss, **kwArgs)
 
     def _epochStart(self, hook, *args, **kwArgs):
@@ -313,12 +334,11 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         if self._step % 100 != 0:
             return
-        self.saver.add_scalar(f"Stat/{self.config.Train.Target}", moment, global_step=self._step)
         self.saver.add_scalar(f"Stat/Loss", loss, global_step=self._step)
         self.saver.add_scalar("Stat/Lr", self._scheduler.get_last_lr()[0], global_step=self._step)
 
     def _epochStart(self, hook, *args, trainSet: TrainSet, **kwArgs):
-        totalBatches = len(trainSet) // self.worldSize
+        totalBatches = math.ceil(len(trainSet) / (trainSet.BatchSize * self.worldSize))
         self.progress.update(self.trainingBar, total=totalBatches)
         self.progress.update(self.epochBar, total=self.config.Train.Epoch * totalBatches, completed=self._step, description=f"[{self._epoch + 1:4d}/{self.config.Train.Epoch:4d}]")
 
@@ -342,6 +362,21 @@ class MainTrainer(PalTrainer, SafeTerminate):
             ), epochFinishHook), "EpochFinishHook", saver)
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
+    @staticmethod
+    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSet, QuerySet, Database]]:
+        saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSet
+        saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
+        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
+        saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
+        database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
+        saver.debug("Train and validation datasets mounted.")
+        return {
+            "trainSet": trainSet,
+            "database": database,
+            "querySet": querySet
+        }
+
     def log(self, *_, **__):
         self.saver.add_scalar("Stat/Epoch", self._epoch, self._step)
         # self.saver.add_images("Train/Raw", tensorToImage(images), global_step=self._step)
@@ -351,13 +386,13 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         self.saver.debug("Start validation at epoch %4d.", self._epoch)
 
-        results, summary = self.validator.validate(self._model.module.eval(), database, querySet, self.progress)
+        results, summary = self.validator.validate(self._modelEMA.module.eval(), database, querySet, self.progress)
 
         for metricModule in metrics.__all__:
             if metricModule != "Visualization":
                 # [mAP, Precision, Recall]
                 self.saver.add_scalar(f"Eval/{metricModule}@{self.validator.numReturns}", results[metricModule], global_step=self._step)
-        self.saver.add_images(f"Eval/Visualization", results["Visualization"], global_step=self._step)
+        # self.saver.add_images(f"Eval/Visualization", results["Visualization"], global_step=self._step)
 
         self.save()
 

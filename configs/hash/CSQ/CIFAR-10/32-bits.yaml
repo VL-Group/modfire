@@ -6,8 +6,10 @@ model:
     backbone: resnet50
     hashMethod: LogitHash
 train:
-  epoch: 100
-  valFreq: 1
+  modelEMADecay: 0.99998
+  modelEMASteps: 32
+  epoch: 600
+  valFreq: 15
   numReturns: -1
   trainer: BaseTrainer
   trainSet:
@@ -25,7 +27,7 @@ train:
     params:
       root: data/cifar10/
       batchSize: 128
-  saveDir: saved
+  saveDir: saved/csq/cifar10/32bits/
   criterion:
     key: CSQ
     params:
@@ -42,7 +44,6 @@ train:
     key: CosineAnnealingLR
     params:
       T_max: 100
-      eta_min: 1.e-8
   gpu:
     gpus: 1
     vRam: -1

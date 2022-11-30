@@ -7,7 +7,10 @@ then
     exit
 fi
 
-eval "$(conda shell.bash hook)"
+__conda_setup="$('conda' 'shell.bash' 'hook' 2> /dev/null)"
+eval "$__conda_setup"
+unset __conda_setup
+
 conda activate base
 conda env remove -n modfire
 conda deactivate

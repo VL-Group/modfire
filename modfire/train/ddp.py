@@ -7,7 +7,6 @@ import logging
 
 import torch
 import torch.distributed as dist
-from vlutils.config import summary
 from vlutils.logger import LoggerBase, trackingFunctionCalls
 import numpy as np
 
@@ -23,16 +22,22 @@ def initializeBaseConfigs(rank: int, worldSize: int, logger: Union[logging.Logge
     # os.environ["MASTER_PORT"] = port
     # logger.debug("DDP master addr: `%s`", "127.0.0.1")
     # logger.debug("DDP master port: `%s`", port)
+    torch.cuda.set_device(rank)
     torch.autograd.set_detect_anomaly(False)
+    # True or False? It depends.
+    # We disable the cudnn benchmarking because it can noticeably affect the accuracy,
+    # or enable it to speedup calculation.
+    # And so does cudnn.deterministic.
     torch.backends.cudnn.benchmark = True
+    # torch.backends.cudnn.deterministic = True # invert with benchmark
 
     logger.debug("Autograd detect anomaly = `%s`", False)
     logger.debug("         CuDNN bechmark = `%s`", True)
     torch.manual_seed(3407)
+    torch.cuda.manual_seed_all(3407)
     random.seed(3407)
     np.random.seed(3407)
     logger.debug("            Random seed = `%d`", 3407)
-    torch.cuda.set_device(rank)
 
     swapFilePath = os.path.join(Consts.TempDir, "__modfire_train_ddp_rpc_swap_file")
     try:
@@ -52,9 +57,6 @@ def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.
             tmpFile = os.path.join(Consts.TempDir, "resume.ckpt")
     else:
         tmpFile = None
-
-
-    logging.info("Here is the whole config during this run: \r\n%s", summary(config.serialize()))
 
     logging.debug("Creating the world...")
     initializeBaseConfigs(rank, worldSize)
