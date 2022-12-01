@@ -127,11 +127,11 @@ class PalTrainer(Restorable):
 
             self._optimizer.zero_grad()
             z = self._model(images.to(self.rank, non_blocking=True))
-            loss = self._criterion(z, targets.to(self.rank, non_blocking=True))
+            loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True))
             loss.backward()
             self._optimizer.step()
 
-            self._stepFinish(stepFinishHook, loss=loss)
+            self._stepFinish(stepFinishHook, loss=loss, stats=stats)
 
     @staticmethod
     def _preRegistration(config: Config, saver: Saver):
@@ -326,7 +326,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         super()._afterRun(hook, *args, **kwArgs)
         self.summary()
 
-    def _stepFinish(self, hook, *args, loss, **kwArgs):
+    def _stepFinish(self, hook, *args, loss, stats, **kwArgs):
         super()._stepFinish(hook, *args, loss=loss, **kwArgs)
 
         moment = self.diffTracker(loss)
@@ -335,9 +335,19 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.progress.update(self.trainingBar, advance=1, progress=f"[{task.completed + 1:4d}/{task.total:4d}]", suffix=f"L = [b green]{moment:2.2f}[/]")
         self.progress.update(self.epochBar, advance=1)
 
-        if self._step % 100 != 0:
+        if self._step % 10 != 0:
             return
-        self.saver.add_scalar(f"Stat/Loss", loss, global_step=self._step)
+
+        for key, value in stats.items():
+            if value.numel() == 1:
+                self.saver.add_scalar(f"Stat/{key}", value, global_step=self._step)
+            elif len(value.shape) == 4:
+                self.saver.add_images(f"Stat/{key}", value, global_step=self._step)
+            elif len(value.shape) == 3:
+                self.saver.add_image(f"Stat/{key}", value, global_step=self._step)
+            else:
+                self.saver.add_histogram(f"Stat/{key}", value, global_step=self._step)
+        self.saver.add_scalar("Stat/Loss", loss, global_step=self._step)
         self.saver.add_scalar("Stat/Lr", self._scheduler.get_last_lr()[0], global_step=self._step)
 
     def _epochStart(self, hook, *args, trainSet: TrainSet, **kwArgs):

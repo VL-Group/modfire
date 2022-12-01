@@ -26,9 +26,9 @@ train:
     params:
       root: data/easy/cifar10/
       batchSize: 128
-  saveDir: saved/csq/cifar10/32bits/
+  saveDir: saved/csq_d/cifar10/32bits/
   criterion:
-    key: CSQ
+    key: CSQ_D
     params:
       bits: 32
       numClasses: 10
