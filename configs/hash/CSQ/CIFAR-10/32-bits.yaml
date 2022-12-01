@@ -6,8 +6,7 @@ model:
     backbone: resnet50
     hashMethod: LogitHash
 train:
-  modelEMADecay: 0.99998
-  modelEMASteps: 32
+  earlyStop: 10
   epoch: 600
   valFreq: 15
   numReturns: -1
@@ -40,6 +39,8 @@ train:
     key: Lamb
     params:
       lr: 1.e-3
+      # for Lamb: 0.01, for others: 1e-4
+      weight_decay: 0.01
   schdr:
     key: CosineAnnealingLR
     params:

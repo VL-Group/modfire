@@ -16,7 +16,7 @@ from modfire import Consts
 from .trainer import TrainerBuilder
 
 
-def initializeBaseConfigs(rank: int, worldSize: int, logger: Union[logging.Logger, LoggerBase] = logging.root):
+def initializeBaseConfigs(rank: int, worldSize: int, configHash: str, logger: Union[logging.Logger, LoggerBase] = logging.root):
     # The http socket method fails in some rare cases, we switch to use file
     # os.environ["MASTER_ADDR"] = "127.0.0.1"
     # os.environ["MASTER_PORT"] = port
@@ -39,7 +39,7 @@ def initializeBaseConfigs(rank: int, worldSize: int, logger: Union[logging.Logge
     np.random.seed(3407)
     logger.debug("            Random seed = `%d`", 3407)
 
-    swapFilePath = os.path.join(Consts.TempDir, "__modfire_train_ddp_rpc_swap_file")
+    swapFilePath = os.path.join(Consts.TempDir, f"__modfire_train_ddp_rpc_swap_file_{configHash}")
     try:
         os.remove(swapFilePath)
     except:
@@ -59,7 +59,7 @@ def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.
         tmpFile = None
 
     logging.debug("Creating the world...")
-    initializeBaseConfigs(rank, worldSize)
+    initializeBaseConfigs(rank, worldSize, hex(hash(str(config.serialize())))[3:])
     logging.debug("Base configs initialized.")
 
     dist.barrier()

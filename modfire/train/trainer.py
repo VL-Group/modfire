@@ -32,8 +32,7 @@ from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTermina
 from modfire.dataset import QuerySet, Database, TrainSet
 
 from .hooks import EpochFrequencyHook, checkHook
-from .utils import EMATracker, PrettyStep, getSaver
-from .ema import ExponentialMovingAverage
+from .utils import EMATracker, PrettyStep, getSaver, setWeightDecay
 
 
 class TrainerBuilder(modfire.utils.registry.Registry[Callable[..., "PalTrainer"]]):
@@ -63,10 +62,12 @@ class PalTrainer(Restorable):
         # self.lastFormatted = -1
         self._preRegistration(config, self.saver)
 
-        self._model, self._modelEMA = self._createModel(self.rank, self.worldSize, self.config, self.saver)
+        self._model = self._createModel(self.rank, self.config, self.saver)
         self._criterion, self.criterionFn = self._createCriterion(self.rank, self.config, self.saver)
         self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self.worldSize, self.saver)
         self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
+
+        self.earlyStopFlag = torch.tensor([False]).to(self.rank)
 
         self.saver.debug("<%s> created.", self.__class__.__name__)
 
@@ -180,22 +181,23 @@ class PalTrainer(Restorable):
         }
 
     @staticmethod
-    def _createModel(rank: int, worldSize: int, config: Config, saver: Saver) -> Tuple[DistributedDataParallel, ExponentialMovingAverage]:
+    def _createModel(rank: int, config: Config, saver: Saver) -> DistributedDataParallel:
         saver.debug("Creating model...")
         modelFn = trackingFunctionCalls(ModelRegistry.get(config.Model.Key), saver)
         model = modelFn(**config.Model.Params)
 
         # EMA model for evaluation
-        adjust = worldSize * config.Train.TrainSet.Params["batchSize"] * config.Train.ModelEMASteps / config.Train.Epoch
-        alpha = 1.0 - config.Train.ModelEMADecay
-        alpha = min(1.0, alpha * adjust)
-        modelEMA = ExponentialMovingAverage(model, device=rank, decay=1.0 - alpha)
+        # deepcopy can't handle faiss objects. reject.
+        # adjust = worldSize * config.Train.TrainSet.Params["batchSize"] * config.Train.ModelEMASteps / config.Train.Epoch
+        # alpha = 1.0 - config.Train.ModelEMADecay
+        # alpha = min(1.0, alpha * adjust)
+        # modelEMA = ExponentialMovingAverage(model, device=rank, decay=1.0 - alpha)
         # EMA model for evaluation
 
         model = DistributedDataParallel(model.to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         saver.debug("Model created. Size: %s.", totalParameters(model))
-        return model, modelEMA
+        return model
 
     @staticmethod
     def _createOptimizer(config: Config, model: DistributedDataParallel, worldSize: int, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
@@ -209,7 +211,11 @@ class PalTrainer(Restorable):
         else:
             optimCfg = config.Train.Optim
         optimFn = trackingFunctionCalls(OptimRegistry.get(optimCfg.Key), saver)
-        optimizer = optimFn(model.parameters(), **optimCfg.Params)
+
+        # remove weight_decay in any norm layers
+        paramGroup = setWeightDecay(model, optimCfg.Params["weight_decay"], 0.0)
+
+        optimizer = optimFn(paramGroup, **optimCfg.Params)
         saver.debug("Optimizer created.")
         return optimizer, optimFn
 
@@ -247,11 +253,11 @@ class PalTrainer(Restorable):
         self._step += 1
 
         # Update AveragedModel
-        if self._step % self.config.Train.ModelEMASteps == 0:
-            self._modelEMA.update_parameters(self._model)
-            if "warmupEpochs" in self.config.Train.Schdr.Params and self._epoch < self.config.Train.Schdr.Params["warmupEpochs"]:
-                # Reset ema buffer to keep copying weights during warmup period
-                self._modelEMA.n_averaged.fill_(0)
+        # if self._step % self.config.Train.ModelEMASteps == 0:
+        #     self._modelEMA.update_parameters(self._model)
+        #     if "warmupEpochs" in self.config.Train.Schdr.Params and self._epoch < self.config.Train.Schdr.Params["warmupEpochs"]:
+        #         # Reset ema buffer to keep copying weights during warmup period
+        #         self._modelEMA.n_averaged.fill_(0)
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, loss=loss, **kwArgs)
 
@@ -266,6 +272,11 @@ class PalTrainer(Restorable):
         self._epoch += 1
 
         self.saver.debug("Epoch %4d finished.", self._epoch)
+
+
+        dist.broadcast(self.earlyStopFlag, 0)
+        if self.earlyStopFlag:
+            raise StopIteration
 
         self._scheduler.step()
         self.saver.debug("Lr is set to %.2e.", self._scheduler.get_last_lr()[0])
@@ -288,15 +299,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         # Logging and saving
         self.bestmAP = -1
-        # Call function at every X epoches.
-        self.epochFinishCalls = EpochFrequencyHook(
-            (1, self.log),
-            logger=self.saver
-        )
-        self.epochStartCalls = EpochFrequencyHook(
-            (self.config.Train.ValFreq, self.validate),
-            logger=self.saver
-        )
+        self.earlyStopCount = 0
 
     def onTerminate(self, signum, frame):
         self.saver.critical("Main process was interrupted, try to save necessary info.")
@@ -386,7 +389,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         self.saver.debug("Start validation at epoch %4d.", self._epoch)
 
-        results, summary = self.validator.validate(self._modelEMA.module.eval(), database, querySet, self.progress)
+        results, summary = self.validator.validate(self._model.module.eval(), database, querySet, self.progress)
 
         for metricModule in metrics.__all__:
             if metricModule != "Visualization":
@@ -396,16 +399,24 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         self.save()
 
-        mAP = results["mAP"]
+        self.saver.info("%s", summary)
 
+        mAP = results["mAP"]
         if mAP > self.bestmAP:
             self.bestmAP = mAP
             self.progress.update(self.epochBar, suffix=f"H = [b red]{self.bestmAP * 100:2.2f}[/]%")
             shutil.copy2(self.saver.SavePath, os.path.join(self.saver.SaveDir, "best.ckpt"))
-        self.saver.info("%s", summary)
-        self._model.train()
+            self.earlyStopCount = 0
+        else:
+            self.earlyStopCount += 1
+            if self.earlyStopCount >= self.config.Train.EarlyStop:
+                self.earlyStop()
 
         self.saver.debug("End validation at epoch %4d.", self._epoch)
+
+    def earlyStop(self):
+        self.saver.info("Early stop at epoch %4d.", self._epoch)
+        self.earlyStopFlag.data.copy_(torch.tensor([True]))
 
 
 @TrainerBuilder.register("BaseTrainer")
