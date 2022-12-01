@@ -21,7 +21,7 @@ def evalTransform(inputs):
 
 class CIFAR(Dataset, abc.ABC):
     def __init__(self, root: str, batchSize: int):
-        super().__init__()
+        super().__init__(root)
         allImages, allTargets = self.getAlldata(root, True)
         allTrains, allQueries, allDatabase = list(), list(), list()
         allTrainLabels, allQueryLabels, allDatabaseLabels = list(), list(), list()
@@ -73,6 +73,7 @@ class CIFAR(Dataset, abc.ABC):
                         .shuffle()\
                         .sharding_filter()\
                         .map(trainTransform)\
+                        .prefetch(self._batchSize * 2)\
                         .batch(self._batchSize)\
                         .collate()
         return _trainSet()
@@ -93,9 +94,11 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return IterableWrapper(zip(range(len(self._queries)), self._queries))\
+                return IterableWrapper(self._queries)\
+                        .enumerate()\
                         .sharding_filter()\
                         .map(evalTransform)\
+                        .prefetch(self._batchSize * 2)\
                         .batch(self._batchSize)\
                         .collate()
             def info(self, indices: torch.Tensor) -> torch.Tensor:
@@ -118,9 +121,11 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self):
-                return IterableWrapper(zip(range(len(self._database)), self._database))\
+                return IterableWrapper(self._database)\
+                        .enumerate()\
                         .sharding_filter()\
                         .map(evalTransform)\
+                        .prefetch(self._batchSize * 2)\
                         .batch(self._batchSize)\
                         .collate()
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -146,6 +151,20 @@ class CIFAR(Dataset, abc.ABC):
 
 
 class CIFAR10(CIFAR):
+    def check(self) -> bool:
+        try:
+            _c10(root=self.root, train=True)
+        except RuntimeError:
+            return False
+        return True
+
+    def prepare(self) -> bool:
+        try:
+            _c10(root=self.root, download=True)
+        except RuntimeError:
+            return False
+        return True
+
     @staticmethod
     def getAlldata(root, shuffle: bool = True):
         train, test = _c10(root=root, train=True), _c10(root=root, train=False)
@@ -161,6 +180,19 @@ class CIFAR10(CIFAR):
 
 
 class CIFAR100(CIFAR):
+    def check(self) -> bool:
+        try:
+            _c100(root=self.root, train=True)
+        except RuntimeError:
+            return False
+        return True
+
+    def prepare(self) -> bool:
+        try:
+            _c100(root=self.root, download=True)
+        except RuntimeError:
+            return False
+        return True
     @staticmethod
     def getAlldata(root, shuffle: bool = True):
         train, test = _c100(root=root, train=True), _c100(root=root, train=False)

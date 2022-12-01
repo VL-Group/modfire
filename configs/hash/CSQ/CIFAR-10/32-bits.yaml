@@ -7,8 +7,8 @@ model:
     hashMethod: LogitHash
 train:
   earlyStop: 10
-  epoch: 600
-  valFreq: 15
+  epoch: 500
+  valFreq: 25
   numReturns: -1
   trainer: BaseTrainer
   trainSet:

@@ -3,9 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from . import CriterionRegistry
-from .utils import pairwiseHamming
-
+from .utils import pairwiseHamming, CriterionRegistry
 
 
 @CriterionRegistry.register
@@ -55,6 +53,9 @@ class CSQ(nn.Module):
 
 @CriterionRegistry.register
 class CSQ_D(CSQ):
+    # NOTE: A very interesting thing:
+    #       Even if we don't train the mapNet
+    #       The Hashing performance is still very high.
     class _randomBitFlip(nn.Module):
         template: torch.BoolTensor
         def __init__(self, bits, numBitsToFlip):
@@ -137,7 +138,7 @@ class CSQ_D(CSQ):
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         self._ticker += 1
-        if self._ticker % (self.m ** 2) * 32 == 0:
+        if self._ticker % int((self.m ** 2) * 32) == 0:
             self.resetPermIdx()
         # X are permuted on last dim according to permIdx
         x = x[:, self.permIdx]

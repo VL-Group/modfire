@@ -63,8 +63,8 @@ class PalTrainer(Restorable):
         self._preRegistration(config, self.saver)
 
         self._model = self._createModel(self.rank, self.config, self.saver)
-        self._criterion, self.criterionFn = self._createCriterion(self.rank, self.config, self.saver)
-        self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self.worldSize, self.saver)
+        self._criterion = self._createCriterion(self.rank, self.config, self.saver)
+        self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self._criterion, self.worldSize, self.saver)
         self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
 
         self.earlyStopFlag = torch.tensor([False]).to(self.rank)
@@ -196,11 +196,21 @@ class PalTrainer(Restorable):
 
         model = DistributedDataParallel(model.to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        saver.debug("Model created. Size: %s.", totalParameters(model))
+        saver.debug("Model created. #Params: %s.", totalParameters(model))
         return model
 
     @staticmethod
-    def _createOptimizer(config: Config, model: DistributedDataParallel, worldSize: int, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
+    def _createCriterion(rank: int, config: Config, saver: Saver) -> DistributedDataParallel:
+        saver.debug("Creating criterion...")
+        criterionFn = trackingFunctionCalls(CriterionRegistry.get(config.Train.Criterion.Key), saver)
+        criterion = criterionFn(**config.Train.Criterion.Params)
+        criterion = DistributedDataParallel(criterion.to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
+        criterion = torch.nn.SyncBatchNorm.convert_sync_batchnorm(criterion)
+        saver.debug("criterion created. #Params: %s.", totalParameters(criterion))
+        return criterion
+
+    @staticmethod
+    def _createOptimizer(config: Config, model: DistributedDataParallel, criterion: DistributedDataParallel, worldSize: int, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
         saver.debug("Creating optimizer...")
         if "lr" in config.Train.Optim.Params and "batchSize" in config.Train.TrainSet.Params:
             batchSize = config.Train.TrainSet.Params["batchSize"] * worldSize
@@ -213,7 +223,8 @@ class PalTrainer(Restorable):
         optimFn = trackingFunctionCalls(OptimRegistry.get(optimCfg.Key), saver)
 
         # remove weight_decay in any norm layers
-        paramGroup = setWeightDecay(model, optimCfg.Params["weight_decay"], 0.0)
+        paramGroup = setWeightDecay(model, optimCfg.Params["weight_decay"], 0.0) +\
+                        setWeightDecay(criterion, optimCfg.Params["weight_decay"], 0.0)
 
         optimizer = optimFn(paramGroup, **optimCfg.Params)
         saver.debug("Optimizer created.")
@@ -226,14 +237,6 @@ class PalTrainer(Restorable):
         scheduler = schdrFn(optimizer, **config.Train.Schdr.Params)
         saver.debug("LR scheduler created.")
         return scheduler, schdrFn
-
-    @staticmethod
-    def _createCriterion(rank: int, config: Config, saver: Saver) -> Tuple[nn.Module, Callable[..., nn.Module]]:
-        saver.debug("Creating criterion...")
-        criterionFn = trackingFunctionCalls(CriterionRegistry.get(config.Train.Criterion.Key), saver)
-        criterion = criterionFn(**config.Train.Criterion.Params).to(rank)
-        saver.debug("criterion created.")
-        return criterion, criterionFn
 
     def _beforeRun(self, hook, *args, **kwArgs):
         self.saver.info("Start training.")

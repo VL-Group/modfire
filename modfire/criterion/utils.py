@@ -1,4 +1,9 @@
+from typing import Callable
+
 import torch
+from torch import nn
+from vlutils.base import Registry
+
 
 def pairwiseHamming(X: torch.Tensor):
     X = X.float() * 2 - 1
@@ -7,3 +12,7 @@ def pairwiseHamming(X: torch.Tensor):
     # mask diagonal
     pairwise[torch.eye(len(pairwise), dtype=torch.bool, device=X.device)] = -1
     return pairwise
+
+
+class CriterionRegistry(Registry[Callable[..., nn.Module]]):
+    pass

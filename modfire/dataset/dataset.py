@@ -1,8 +1,10 @@
 from typing import Any, Tuple
 import abc
+import os
 
 import torch
 from torch.utils.data import IterDataPipe
+from vlutils.saver import StrPath
 
 
 class TrainSet(abc.ABC):
@@ -94,6 +96,29 @@ class Database(abc.ABC):
 
 
 class Dataset(abc.ABC):
+    @abc.abstractmethod
+    def check(self) -> bool:
+        """Check whether the dataset is downloaded and verified.
+
+        Returns:
+            bool
+        """
+
+    @abc.abstractmethod
+    def prepare(self, root: StrPath):
+        """Check whether the dataset is downloaded and verified.
+
+        Returns:
+            bool
+        """
+
+    def __init__(self, root: StrPath):
+        super().__init__()
+        self.root = root
+        if not self.check():
+            raise IOError(f"You have not organized `{self.__class__.__name__}` in the specified directory `{self.root}`.{os.linesep}"\
+                f"If you want to prepare it, call `modfire dataset {self.__class__.__name__} --root=\"{self.root}\"`.")
+
     @property
     @abc.abstractmethod
     def TrainSet(self) -> TrainSet:
