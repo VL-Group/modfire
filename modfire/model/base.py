@@ -25,9 +25,15 @@ class ModelType(enum.Enum):
 
 class BaseWrapper(nn.Module, abc.ABC):
     _dummy: torch.Tensor
-    def __init__(self):
+    def __init__(self, bits: int):
         super().__init__()
         self.register_buffer("_dummy", torch.empty([1]), persistent=False)
+        self.bits = bits
+
+    @property
+    def Bits(self) -> int:
+        return self.bits
+
     @property
     @abc.abstractmethod
     def Type(self) -> ModelType:
@@ -52,10 +58,11 @@ class BaseWrapper(nn.Module, abc.ABC):
 class BinaryWrapper(BaseWrapper):
     _byteTemplate: torch.Tensor
     def __init__(self, bits: int):
-        super().__init__()
+        super().__init__(bits)
         self.database = BinarySearcher(bits)
         self.register_buffer("_byteTemplate", torch.tensor([int(2 ** x) for x in range(8)]))
 
+    @property
     def Type(self) -> ModelType:
         return ModelType.Hash
 
@@ -129,10 +136,11 @@ class BinaryWrapper(BaseWrapper):
 class PQWrapper(BaseWrapper):
     codebook: nn.Parameter
     def __init__(self, m: int, k: int, d: int):
-        super().__init__()
+        super().__init__(m * int(math.log2(k)))
         self.codebook = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(m, k, d // m)))
         self.database = PQSearcher(self.codebook.cpu().numpy())
 
+    @property
     def Type(self) -> ModelType:
         return ModelType.ProductQuantization
 

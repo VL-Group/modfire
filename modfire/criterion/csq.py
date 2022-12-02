@@ -138,7 +138,7 @@ class CSQ_D(CSQ):
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         self._ticker += 1
-        if self._ticker % int((self.m ** 2) * 32) == 0:
+        if self._ticker % int(self.m * 16) == 0:
             self.resetPermIdx()
         # X are permuted on last dim according to permIdx
         x = x[:, self.permIdx]

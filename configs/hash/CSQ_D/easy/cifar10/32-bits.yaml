@@ -1,4 +1,5 @@
-# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/modfire/main/configs/schema.json"
+$schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
+summary: 32bits_Hash_CSQ-D_resnet50_cifar10
 model:
   key: HashModel
   params:
@@ -26,7 +27,7 @@ train:
     params:
       root: data/easy/cifar10/
       batchSize: 128
-  saveDir: saved/csq_d/cifar10/32bits/
+  saveDir: saved/csq/easy/cifar10/32bits/
   criterion:
     key: CSQ_D
     params:

@@ -1,0 +1,12 @@
+# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/modfire/main/configs/schema.json"
+numReturns: -1
+querySet:
+  key: CIFAR10
+  params:
+    root: data/easy/cifar10/
+    batchSize: 128
+database:
+  key: CIFAR10
+  params:
+    root: data/easy/cifar10/
+    batchSize: 128

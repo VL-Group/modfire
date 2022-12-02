@@ -49,9 +49,9 @@ Args:
 @entryPoint.command()
 @click.option("-D", "--debug", is_flag=True, help="Set logging level to DEBUG to print verbose messages.")
 @click.option("-q", "--quiet", is_flag=True, help="Silence all messages, this option has higher priority to `-D/--debug`.")
-@click.option("-e", "--export", type=click.Path(exists=False, resolve_path=True, path_type=pathlib.Path), required=False, help="Path to export the final model that is compatible with main program.")
+@click.option("-e", "--export", is_flag=True, help="If True, append the test results as `result.yaml` under the same dir of test config path. Meanwhile, export the final model to this dir which can be used in the main program. Model name is generated automatically.")
 @click.argument("path", type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=pathlib.Path), required=True, nargs=1)
-@click.argument("test", type=click.Path(exists=True, file_okay=False, resolve_path=True, path_type=pathlib.Path), required=True, nargs=1)
+@click.argument("test", type=click.Path(exists=True, dir_okay=False, resolve_path=True, path_type=pathlib.Path), required=True, nargs=1)
 def validate(debug, quiet, export, path, test):
     """Validate a trained model from `path` by images from `images` dir, and publish a final state_dict to `output` path.
 

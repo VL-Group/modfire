@@ -44,8 +44,8 @@ class TrainSchema(Schema):
     optim = fields.Nested(GeneralSchema(), required=True, description="Optimizer used for training. As for current we have `Adam` and `Lamb`.")
     schdr = fields.Nested(GeneralSchema(), required=True, description="Learning rate scheduler used for training. As for current we have `ReduceLROnPlateau`, `Exponential`, `MultiStep`, `OneCycle` and all schedulers defined in `modfire.train.lrSchedulers`.")
     gpu = fields.Nested(GPUSchema(), required=True, description="GPU configs for training.")
-    hooks = fields.List(fields.Nested(GeneralSchema()), required=False, description="Hooks used for training. Key is used to retrieve hook from `LBHash.train.hooks`.")
-    externalLib = fields.List(fields.Str(), required=False, allow_none=True, description="External libraries used for training. All python files in `externalLib` will be imported as modules. In this way, you could extend registries.")
+    hooks = fields.List(fields.Nested(GeneralSchema()), required=False, allow_none=True, default=[], description="Hooks used for training. Key is used to retrieve hook from `LBHash.train.hooks`.")
+    externalLib = fields.List(fields.Str(), required=False, allow_none=True, default=[], description="External libraries used for training. All python files in `externalLib` will be imported as modules. In this way, you could extend registries.")
 
     @post_load
     def _(self, data, **kwargs):
@@ -54,6 +54,7 @@ class TrainSchema(Schema):
 class ConfigSchema(Schema):
     class Meta:
         unknown = RAISE
+    summary = fields.Str(required=True, description="The overall summary to describe method, bits, training set, etc. Strict format: `{bits}bits_{model_type}_{method}_{backbone}_{trainset}_{optional_comments}`. `model_type` can be found in `modfire.model.base`.")
     model = fields.Nested(GeneralSchema(), required=True, description="Model to use. Avaliable params are e.g. `backbone`, `bits` and `hashMethod`.")
     train = fields.Nested(TrainSchema(), required=True, description="Training configs.")
 
@@ -190,8 +191,13 @@ class Train:
 
 @dataclass
 class Config:
+    summary: str
     model: General
     train: Train
+
+    @property
+    def Summary(self) -> str:
+        return self.summary
 
     @property
     def Model(self) -> General:

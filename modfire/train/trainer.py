@@ -10,7 +10,6 @@ import importlib.util
 import sys
 
 import torch
-from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torch import distributed as dist
 from torchdata.dataloader2 import DataLoader2, DistributedReadingService
@@ -21,6 +20,7 @@ from vlutils.logger import trackingFunctionCalls
 from vlutils.base import Restorable
 from vlutils.runtime import relativePath
 from vlutils.config import summary
+from modfire.model.base import BaseWrapper
 
 import modfire.utils.registry
 from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry
@@ -28,7 +28,7 @@ from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
 from modfire.validate import Validator, metrics
-from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate
+from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate, checkConfigSummary
 from modfire.dataset import QuerySet, Database, TrainSet
 
 from .hooks import EpochFrequencyHook, checkHook
@@ -68,6 +68,8 @@ class PalTrainer(Restorable):
         self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
 
         self.earlyStopFlag = torch.tensor([False]).to(self.rank)
+
+        checkConfigSummary(self.config, self._model.module)
 
         self.saver.debug("<%s> created.", self.__class__.__name__)
 

@@ -1,37 +1,38 @@
-# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/modfire/main/configs/schema.json"
+$schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
+summary: 32bits_ProductQuantization_CSQ-D_resnet50_cifar10
 model:
-  key: HashModel
+  key: PQModel
   params:
-    bits: 32
+    m: 4
+    k: 256
+    d: 256
+    intraNormalization: true
     backbone: resnet50
-    hashMethod: LogitHash
+    pqMethod: SoftPQ
 train:
-  earlyStop: 10
-  epoch: 500
-  valFreq: 25
+  epoch: 100
+  valFreq: 1
   numReturns: -1
-  trainer: BaseTrainer
   trainSet:
     key: CIFAR10
     params:
-      root: data/easy/cifar10/
+      root: data/cifar10/
       batchSize: 128
   querySet:
     key: CIFAR10
     params:
-      root: data/easy/cifar10/
+      root: data/cifar10/
       batchSize: 128
   database:
     key: CIFAR10
     params:
-      root: data/easy/cifar10/
+      root: data/cifar10/
       batchSize: 128
-  saveDir: saved/csq/cifar10/32bits/
+  saveDir: saved/csq/easy/cifar10/32bits/
   criterion:
-    key: CSQ
+    key: PQNet
     params:
-      bits: 32
-      numClasses: 10
+      mode: ce
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
@@ -39,12 +40,11 @@ train:
     key: Lamb
     params:
       lr: 1.e-3
-      # for Lamb: 0.01, for others: 1e-4
-      weight_decay: 0.01
   schdr:
     key: CosineAnnealingLR
     params:
       T_max: 100
+      eta_min: 1.e-8
   gpu:
     gpus: 1
     vRam: -1

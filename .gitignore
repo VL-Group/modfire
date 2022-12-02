@@ -7,6 +7,7 @@ data
 *.mcq
 saved/
 tmp/
+*.modfire
 
 
 # Byte-compiled / optimized / DLL files

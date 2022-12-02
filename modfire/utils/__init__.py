@@ -19,6 +19,21 @@ from rich.progress import TimeElapsedColumn, BarColumn, TimeRemainingColumn
 
 from modfire import Consts
 import modfire
+from modfire.config import Config
+from modfire.model.base import BaseWrapper
+
+
+def checkConfigSummary(config: Config, model: BaseWrapper):
+    summarys = config.Summary.split("_")
+    if len(summarys) not in [5, 6]:
+        raise ValueError(f"Summary in config has wrong number of descriptions. Expect: `5 or 6`, got: `{len(summarys)}`.")
+    bits = int(summarys[0][:-4])
+    if bits != model.Bits:
+        raise ValueError(f"Bits in summary not equals to actual model bits. Expected: `{model.Bits}`, got: `{bits}`.")
+    modelType = summarys[1]
+    if modelType != str(model.Type):
+        raise ValueError(f"Model type in summary not equals to actual model type. Expected: `{str(model.Type)}`, got: `{modelType}`.")
+
 
 
 def nop(*_, **__):
