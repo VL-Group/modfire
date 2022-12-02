@@ -45,7 +45,7 @@ train:
   schdr:
     key: CosineAnnealingLR
     params:
-      T_max: 100
+      T_max: 500
   gpu:
     gpus: 1
     vRam: -1

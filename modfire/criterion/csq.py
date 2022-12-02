@@ -102,6 +102,12 @@ class CSQ_D(CSQ):
             self._net = nn.ModuleList(ffnNet() for _ in range(bits // 8))
             self._bitFlip = CSQ_D._randomBitFlip(bits, int(bits // 32) ** 2)
 
+        def reset(self):
+            for ffnNet in self._net:
+                for net in ffnNet:
+                    if hasattr(net, "reset_parameters"):
+                        net.reset_parameters()
+
         def forward(self, x, flip):
             if flip:
                 x = self._bitFlip(x)
@@ -132,14 +138,16 @@ class CSQ_D(CSQ):
         self.mapper._bitFlip.BitFlip = numBitsToFlip
         self.bitFlip.BitFlip = numBitsToFlip
 
-    def resetPermIdx(self):
+    def reset(self):
         # reset permIdx
         self.permIdx.data.copy_(torch.randperm(self.m * 8, device=self.permIdx.device))
+        # reset params
+        self.mapper.reset()
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         self._ticker += 1
         if self._ticker % int(self.m * 16) == 0:
-            self.resetPermIdx()
+            self.reset()
         # X are permuted on last dim according to permIdx
         x = x[:, self.permIdx]
 
