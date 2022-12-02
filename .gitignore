@@ -1,13 +1,15 @@
 # User-defined paths
 .vscode/
 *ckpt*
-data/
-data
 *.mcquic
 *.mcq
 saved/
 tmp/
 *.modfire
+*.tar.gz*
+cifar*/
+AllTags81.txt
+Imagelist.txt
 
 
 # Byte-compiled / optimized / DLL files
