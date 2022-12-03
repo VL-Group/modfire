@@ -4,6 +4,7 @@ import os
 import tempfile
 import shutil
 import atexit
+import pathlib
 
 class ConstsMetaClass(type):
     @property
@@ -25,3 +26,5 @@ class Consts(metaclass=ConstsMetaClass):
     Eps = 1e-6
     CDot = "·"
     TimeOut = 15
+    PackageDir = pathlib.Path(os.path.abspath(__file__)).parent
+    AssetsPath = PackageDir.joinpath("assets")

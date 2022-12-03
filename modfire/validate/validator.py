@@ -4,7 +4,7 @@ from vlutils.metrics.meter import Meters
 
 from modfire.config import Config
 from modfire.model.base import BaseWrapper
-from modfire.dataset import Database, QuerySet
+from modfire.dataset import Database, QuerySplit
 
 from .metrics import mAP, Precision, Recall, Visualization
 
@@ -19,7 +19,7 @@ class Validator:
         ])
 
     @torch.no_grad()
-    def validate(self, model: BaseWrapper, database: Database, queries: QuerySet, progress: Progress):
+    def validate(self, model: BaseWrapper, database: Database, queries: QuerySplit, progress: Progress):
         model.eval()
         self._meter.reset()
         model.reset()

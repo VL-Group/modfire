@@ -53,3 +53,16 @@ class LabelToOneHot(IterDataPipe):
 
 def labelToOneHot(source: IterDataPipe, numClasses: int):
     return source.map(lambda x: F.one_hot(x, num_classes=numClasses))
+
+
+def mappedTrainTransform(inputs):
+    return TrainTransform(inputs[0]), inputs[1]
+
+def mappedEvalTransform(inputs):
+    return inputs[0], EvalTransform(inputs[1])
+
+def defaultTrainingDataPipe(source: IterDataPipe, batchSize: int):
+    return source.shuffle().sharding_filter().map(mappedTrainTransform).prefetch(batchSize * 2).batch(batchSize).collate()
+
+def defaultEvalDataPipe(source: IterDataPipe, batchSize: int):
+    return source.sharding_filter().map(mappedEvalTransform).prefetch(batchSize * 2).batch(batchSize).collate()

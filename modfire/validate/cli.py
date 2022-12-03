@@ -87,7 +87,7 @@ def main(debug: bool, quiet: bool, export: bool, path: pathlib.Path, test: pathl
     progress = getRichProgress()
 
     with progress:
-        result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Database, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).QuerySet, progress)
+        result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Database, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).QuerySplit, progress)
         logger.info(summary)
 
     if not export:

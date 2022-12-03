@@ -2,7 +2,7 @@ from typing import Callable
 
 from vlutils.base import Registry
 
-from .dataset import Database, TrainSet, QuerySet, Dataset
+from .dataset import Database, TrainSplit, QuerySplit, Dataset, Split
 from .easy.cifar import CIFAR10, CIFAR100
 
 

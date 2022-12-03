@@ -29,7 +29,7 @@ from modfire.config import Config
 from modfire.train.hooks import getAllHooks
 from modfire.validate import Validator, metrics
 from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate, checkConfigSummary
-from modfire.dataset import QuerySet, Database, TrainSet
+from modfire.dataset import QuerySplit, Database, TrainSplit
 
 from .hooks import EpochFrequencyHook, checkHook
 from .utils import EMATracker, PrettyStep, getSaver, setWeightDecay
@@ -167,9 +167,9 @@ class PalTrainer(Restorable):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSet, QuerySet, Database]]:
+    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
-        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSet
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
         # saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
         # querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
         # saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
@@ -355,7 +355,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.add_scalar("Stat/Loss", loss, global_step=self._step)
         self.saver.add_scalar("Stat/Lr", self._scheduler.get_last_lr()[0], global_step=self._step)
 
-    def _epochStart(self, hook, *args, trainSet: TrainSet, **kwArgs):
+    def _epochStart(self, hook, *args, trainSet: TrainSplit, **kwArgs):
         totalBatches = math.ceil(len(trainSet) / (trainSet.BatchSize * self.worldSize))
         self.progress.update(self.trainingBar, total=totalBatches)
         self.progress.update(self.epochBar, total=self.config.Train.Epoch * totalBatches, completed=self._step, description=f"[{self._epoch + 1:4d}/{self.config.Train.Epoch:4d}]")
@@ -381,11 +381,11 @@ class MainTrainer(PalTrainer, SafeTerminate):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSet, QuerySet, Database]]:
+    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
-        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSet
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
         saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
-        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
+        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySplit
         saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
         database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
         saver.debug("Train and validation datasets mounted.")
@@ -399,7 +399,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.add_scalar("Stat/Epoch", self._epoch, self._step)
         # self.saver.add_images("Train/Raw", tensorToImage(images), global_step=self._step)
 
-    def validate(self, *_, database: Database, querySet: QuerySet, **__):
+    def validate(self, *_, database: Database, querySet: QuerySplit, **__):
         torch.cuda.empty_cache()
 
         self.saver.debug("Start validation at epoch %4d.", self._epoch)

@@ -9,7 +9,7 @@ from torch import nn
 from torchdata.dataloader2 import DataLoader2, MultiProcessingReadingService
 from vlutils.base import Registry
 
-from modfire.dataset import Database, QuerySet
+from modfire.dataset import Database, QuerySplit
 from .searcher import BinarySearcher, PQSearcher
 
 
@@ -51,7 +51,7 @@ class BaseWrapper(nn.Module, abc.ABC):
     def reset(self):
         raise NotImplementedError
     @abc.abstractmethod
-    def search(self, queries: QuerySet, numReturns: int, progress: Optional[Progress] = None) -> torch.Tensor:
+    def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> torch.Tensor:
         raise NotImplementedError
 
 
@@ -109,7 +109,7 @@ class BinaryWrapper(BaseWrapper):
         return self.database.reset()
 
     @torch.no_grad()
-    def search(self, queries: QuerySet, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:.1f}k", suffix="")
         dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=8, pin_memory=True))
@@ -180,7 +180,7 @@ class PQWrapper(BaseWrapper):
         return self.database.reset()
 
     @torch.no_grad()
-    def search(self, queries: QuerySet, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:4d}", suffix="")
         dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=8, pin_memory=True))

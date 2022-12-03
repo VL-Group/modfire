@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Tuple
+from typing import Any, Tuple, List
 
 from PIL import Image
 import torch
@@ -10,19 +10,14 @@ from torch.utils.data.datapipes.iter import IterableWrapper
 from torchvision.datasets import CIFAR10 as _c10, CIFAR100 as _c100
 from vlutils.saver import StrPath
 
-from modfire.dataset import Database, Dataset, TrainSet, QuerySet
-from modfire.dataset.utils import TrainTransform, EvalTransform
+from modfire.dataset import Database, Dataset, TrainSplit, QuerySplit
+from modfire.dataset.utils import defaultTrainingDataPipe, defaultEvalDataPipe
 
 
-def trainTransform(inputs):
-    return TrainTransform(Image.fromarray(inputs[0])), inputs[1]
-
-def evalTransform(inputs):
-    return inputs[0], EvalTransform(Image.fromarray(inputs[1]))
 
 class CIFAR(Dataset, abc.ABC):
-    def __init__(self, root: StrPath, batchSize: int):
-        super().__init__(root)
+    def __init__(self, root: StrPath, mode: str, batchSize: int):
+        super().__init__(root, mode, batchSize)
         allImages, allTargets = self.getAlldata(root, True)
         allTrains, allQueries, allDatabase = list(), list(), list()
         allTrainLabels, allQueryLabels, allDatabaseLabels = list(), list(), list()
@@ -46,7 +41,6 @@ class CIFAR(Dataset, abc.ABC):
         self.allTrainLabels = torch.cat(allTrainLabels)
         self.allQueryLabels = torch.cat(allQueryLabels)
         self.allDatabaseLabels = torch.cat(allDatabaseLabels)
-        self.batchSize = batchSize
         # self.trainTransform = trainTransform
         # self.evalTransform = evalTransform
         # self.targetTransform = targetTransform
@@ -57,8 +51,9 @@ class CIFAR(Dataset, abc.ABC):
         raise NotImplementedError
 
     @property
-    def TrainSet(self) -> TrainSet:
-        class _trainSet(TrainSet):
+    def TrainSplit(self) -> TrainSplit:
+        _ = super().TrainSplit
+        class _trainSet(TrainSplit):
             _len = len(self.allTrains)
             _batchSize = self.batchSize
             _trains = self.allTrains.numpy()
@@ -70,18 +65,13 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return IterableWrapper(zip(self._trains, self._labels))\
-                        .shuffle()\
-                        .sharding_filter()\
-                        .map(trainTransform)\
-                        .prefetch(self._batchSize * 2)\
-                        .batch(self._batchSize)\
-                        .collate()
+                return defaultTrainingDataPipe(IterableWrapper(self._trains).map(Image.fromarray).zip(IterableWrapper(self._labels)), self._batchSize)
         return _trainSet()
 
     @property
-    def QuerySet(self) -> QuerySet:
-        class _querySet(QuerySet):
+    def QuerySplit(self) -> QuerySplit:
+        _ = super().QuerySplit
+        class _querySet(QuerySplit):
             # _pipe = _dataPipe()
             _allQueryLabels = self.allQueryLabels
             _len = len(self.allQueries)
@@ -95,13 +85,7 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return IterableWrapper(self._queries)\
-                        .enumerate()\
-                        .sharding_filter()\
-                        .map(evalTransform)\
-                        .prefetch(self._batchSize * 2)\
-                        .batch(self._batchSize)\
-                        .collate()
+                return defaultEvalDataPipe(IterableWrapper(self._queries).enumerate(), self._batchSize)
             def info(self, indices: torch.Tensor) -> torch.Tensor:
                 # [Nq, nClass]
                 return self._allQueryLabels[indices]
@@ -109,6 +93,7 @@ class CIFAR(Dataset, abc.ABC):
 
     @property
     def Database(self) -> Database:
+        _ = super().Database
         class _database(Database):
             # _pipe = _dataPipe()
             _baseLabels = self.allDatabaseLabels
@@ -122,13 +107,7 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self):
-                return IterableWrapper(self._database)\
-                        .enumerate()\
-                        .sharding_filter()\
-                        .map(evalTransform)\
-                        .prefetch(self._batchSize * 2)\
-                        .batch(self._batchSize)\
-                        .collate()
+                return defaultEvalDataPipe(IterableWrapper(self._database).enumerate(), self._batchSize)
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
                 """Return true positives based on query info.
 
@@ -179,6 +158,9 @@ class CIFAR10(CIFAR):
             allTargets = allTargets[randIdx]
         return allImages, F.one_hot(allTargets, num_classes=10) > 0
 
+    @property
+    def Semantics(self) -> List[str]:
+        return ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
 class CIFAR100(CIFAR):
     def check(self) -> bool:
@@ -206,3 +188,7 @@ class CIFAR100(CIFAR):
             allImages = allImages[randIdx]
             allTargets = allTargets[randIdx]
         return allImages, F.one_hot(allTargets, num_classes=100) > 0
+
+    @property
+    def Semantics(self) -> List[str]:
+        return ["apple", "aquarium_fish", "baby", "bear", "beaver", "bed", "bee", "beetle", "bicycle", "bottle", "bowl", "boy", "bridge", "bus", "butterfly", "camel", "can", "castle", "caterpillar", "cattle", "chair", "chimpanzee", "clock", "cloud", "cockroach", "couch", "crab", "crocodile", "cup", "dinosaur", "dolphin", "elephant", "flatfish", "forest", "fox", "girl", "hamster", "house", "kangaroo", "keyboard", "lamp", "lawn_mower", "leopard", "lion", "lizard", "lobster", "man", "maple_tree", "motorcycle", "mountain", "mouse", "mushroom", "oak_tree", "orange", "orchid", "otter", "palm_tree", "pear", "pickup_truck", "pine_tree", "plain", "plate", "poppy", "porcupine", "possum", "rabbit", "raccoon", "ray", "road", "rocket", "rose", "sea", "seal", "shark", "shrew", "skunk", "skyscraper", "snail", "snake", "spider", "squirrel", "streetcar", "sunflower", "sweet_pepper", "table", "tank", "telephone", "television", "tiger", "tractor", "train", "trout", "tulip", "turtle", "wardrobe", "whale", "willow_tree", "wolf", "woman", "worm"]

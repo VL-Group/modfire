@@ -17,16 +17,19 @@ train:
     params:
       root: data/easy/cifar10/
       batchSize: 128
+      mode: Train
   querySet:
     key: CIFAR10
     params:
       root: data/easy/cifar10/
       batchSize: 128
+      mode: Query
   database:
     key: CIFAR10
     params:
       root: data/easy/cifar10/
       batchSize: 128
+      mode: Database
   saveDir: saved/csq/easy/cifar10/32bits/
   criterion:
     key: CSQ_D
