@@ -20,12 +20,18 @@ class Validator:
 
     @torch.no_grad()
     def validate(self, model: BaseWrapper, database: Database, queries: QuerySplit, progress: Progress):
+        device = next(model.parameters()).device
         model.eval()
         self._meter.reset()
         model.reset()
 
-        model.add(database, progress)
-        queryIndices, rankList = model.search(queries, self.numReturns, progress)
-        truePositives, numAllTrues = database.judge(queries.info(queryIndices), rankList)
-        self._meter(truePositives, numAllTrues)
-        return self._meter.results(), self._meter.summary()
+        with database.device(device), queries.device(device):
+            model.add(database, progress)
+            for queryIndices, rankList in model.search(queries, self.numReturns, progress):
+                truePositives, numAllTrues = database.judge(queries.info(queryIndices), rankList.to(device))
+                if torch.any(numAllTrues < 1):
+                    raise RuntimeError("We find a query is not relevant with any samples in database.")
+                # remove outliers
+                self._meter(truePositives, numAllTrues)
+
+            return self._meter.results(), self._meter.summary()

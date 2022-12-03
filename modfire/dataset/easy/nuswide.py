@@ -4,6 +4,8 @@ import os
 import logging
 import tarfile
 import glob
+import shutil
+from contextlib import contextmanager
 
 import torch
 import numpy as np
@@ -12,10 +14,10 @@ from torch.utils.data.datapipes.iter import IterableWrapper
 from torchvision.datasets import folder
 from vlutils.saver import StrPath
 
-from modfire.dataset import Database, Dataset, TrainSplit, QuerySplit
-from modfire.dataset.utils import defaultEvalDataPipe, defaultTrainingDataPipe
+from ..dataset import Database, Dataset, TrainSplit, QuerySplit, DatasetRegistry
+from ..utils import defaultEvalDataPipe, defaultTrainingDataPipe, toDevice
 from modfire import Consts
-from modfire.utils import concatOfFiles
+from modfire.utils import concatOfFiles, hashOfFile, hashOfStream, getRichProgress
 
 
 _ASSETS_PATH = Consts.AssetsPath.joinpath("nuswide")
@@ -33,6 +35,12 @@ if len(ALL_CONCEPTS) != 81:
     raise ValueError("NUS-WIDE concept list corrupted.")
 
 
+def loadImg(inputs):
+    i, img = inputs
+    return i, folder.default_loader(img)
+
+
+@DatasetRegistry.register
 class NUS_WIDE(Dataset):
     def __init__(self, root: StrPath, mode: str, batchSize: int):
         super().__init__(root, mode, batchSize)
@@ -43,35 +51,94 @@ class NUS_WIDE(Dataset):
             return oneLine.split(maxsplit=1)
         with open(path, "r") as fp:
             allLines = filter(None, (line.strip() for line in fp.readlines()))
-        allImages, allLabels = list()
+        allImages, allLabels = list(), list()
         for line in allLines:
             img, labels = _parse(line)
-            allImages.append(img)
-            allLabels.append(map(int, labels.split()))
+            allImages.append(os.path.join(self.root, img))
+            allLabels.append(list(map(int, labels.split())))
         allLabels = torch.from_numpy(np.array(allLabels))
-        if allLabels.shape != 2 or allLabels.shape[-1] != len(ALL_CONCEPTS):
+        if len(allLabels.shape) != 2 or allLabels.shape[-1] != len(ALL_CONCEPTS):
             raise ValueError(f"File corrupted. labels have shape: {allLabels.shape}, while expected concepts length is {len(ALL_CONCEPTS)}.")
-        return allImages, allLabels
+        return allImages, allLabels.float()
 
     def check(self) -> bool:
         return os.path.exists(self.root) and os.path.isdir(self.root) and len(os.listdir(self.root)) == _FILE_COUNT
 
-    def prepare(self, root: StrPath, logger = logging) -> bool:
+    @staticmethod
+    def prepare(root: StrPath, logger = logging) -> bool:
+        if os.path.exists(root) and os.path.isdir(root) and len(os.listdir(root)) == _FILE_COUNT:
+            logger.info("File already prepared, exit.")
+
+            # clean up
+
+            chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*")) + glob.glob(os.path.join(root, "tmp*"))
+
+            for f in chunkedFiles:
+                os.remove(f)
+
         os.makedirs(root, exist_ok=True)
 
+        # clean up
+
+        tmpFiles = glob.glob(os.path.join(root, "tmp*"))
+        for f in tmpFiles:
+            os.remove(f)
+
+
         logger.info("Download files into `%s`.", root)
-        logger.warning("To prepare NUS-WIDE, you need at least 10 GiB disk space for downloading and extracting.")
+        logger.warning("To prepare NUS-WIDE, you need at least 12 GiB disk space for downloading and extracting.")
         for url in _FILE_URL:
-            torch.hub.download_url_to_file(url, root, url.split("_")[-1].split(".")[0])
-        logger.info("Extracting...")
+            fileName = url.split("/")[-1]
+            filePath = os.path.join(root, fileName)
+            hashPrefix = url.split("_")[-1].split(".")[0]
+            if os.path.exists(filePath):
+                with getRichProgress() as p:
+                    hashFile = hashOfFile(filePath, p)
+                if hashFile.startswith(hashPrefix):
+                    logger.info("Skipping `%s` since it is already downloded.", filePath)
+                    continue
+                else:
+                    logger.info("Removing corrupted `%s`.", filePath)
+                    os.remove(filePath)
+            torch.hub.download_url_to_file(url, root, )
+
+
+        logger.info("Verifying...")
+
         chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*"))
         if len(chunkedFiles) != 3:
             raise ValueError(f"Find incorrect downloaded files. File list is {chunkedFiles}.")
         with concatOfFiles(sorted(chunkedFiles, key=lambda x: int(x.split(".")[-1]))) as stream:
+            hashValue = hashOfStream(stream)
+        if not hashValue.startswith(_GLOBAL_HASH):
+            raise BufferError("Merged file corrupted, please try again.")
+
+        logger.info("Verifyied.")
+
+        logger.info("Extracting...")
+        extratedPath = os.path.join(root, "temp")
+        with concatOfFiles(sorted(chunkedFiles, key=lambda x: int(x.split(".")[-1]))) as stream:
             tar = tarfile.open(mode="r:gz", fileobj=stream)
-            tar.extractall()
+            tar.extractall(extratedPath)
         logger.info("Extracted.")
-        map(os.remove, chunkedFiles)
+
+
+        # clean up
+
+        chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*")) + glob.glob(os.path.join(root, "tmp*"))
+
+        for f in chunkedFiles:
+            os.remove(f)
+
+        with getRichProgress() as p:
+            src = glob.glob(os.path.join(extratedPath, "*.jpg"))
+            task = p.add_task("[ Clean up ]", total=len(src), progress="0.00%", suffix="")
+            for i, img in enumerate(src):
+                shutil.move(img, root)
+                p.update(task, advance=1, progress=f"{i / len(src) * 100 :.2f}%")
+            p.remove_task(task)
+        shutil.rmtree(extratedPath)
+
         if len(os.listdir(root)) != _FILE_COUNT:
             raise ValueError(f"The total count of extracted images is incorrect. Expected: {_FILE_COUNT}. Got: {len(os.listdir(root))}.")
         return True
@@ -87,9 +154,16 @@ class NUS_WIDE(Dataset):
             def DataPipe(self) -> IterDataPipe:
                 imgs = IterableWrapper(self._images)
                 labels = IterableWrapper(self._labels)
-                return defaultTrainingDataPipe(imgs.map(folder.default_loader).zip(labels), self._batchSize)
+                return defaultTrainingDataPipe(labels.zip(imgs).sharding_filter().map(loadImg), self._batchSize)
             def __len__(self):
                 return len(self._images)
+
+            @contextmanager
+            def device(self, device):
+                originalDevice = self._labels.device
+                self._labels = self._labels.to(device)
+                yield
+                self._labels = self._labels.to(originalDevice)
 
         return _dataset()
 
@@ -103,11 +177,18 @@ class NUS_WIDE(Dataset):
             @property
             def DataPipe(self) -> IterDataPipe:
                 imgs = IterableWrapper(self._images)
-                return defaultEvalDataPipe(imgs.map(folder.default_loader).enumerate(), self._batchSize)
+                return defaultEvalDataPipe(imgs.enumerate().sharding_filter().map(loadImg), self._batchSize)
             def __len__(self):
                 return len(self._images)
             def info(self, indices) -> torch.Tensor:
                 return self._labels[indices]
+
+            @contextmanager
+            def device(self, device):
+                originalDevice = self._labels.device
+                self._labels = self._labels.to(device)
+                yield
+                self._labels = self._labels.to(originalDevice)
 
         return _dataset()
 
@@ -121,18 +202,25 @@ class NUS_WIDE(Dataset):
             @property
             def DataPipe(self) -> IterDataPipe:
                 imgs = IterableWrapper(self._images)
-                return defaultEvalDataPipe(imgs.map(folder.default_loader).enumerate(), self._batchSize)
+                return defaultEvalDataPipe(imgs.enumerate().sharding_filter().map(loadImg), self._batchSize)
             def __len__(self):
                 return len(self._images)
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
                 # NOTE: Here, queryInfo is label of queries.
                 # [Nq, k, nClass]
                 databaseLabels = self._labels[rankList]
-                #                            [Nq, 1, nClass]
-                matching = torch.logical_and(queryInfo[:, None], databaseLabels).sum(-1) > 0
-                # [Nq, Nb, nclass] -> [Nq]
-                numAllTrues = (torch.logical_and(queryInfo[:, None], self._labels).sum(-1) > 0).sum(-1)
+                # [Nq, k]
+                matching = torch.einsum("qc,qkc->qk", queryInfo, databaseLabels) > 0
+                # [Nq, Nb] -> [Nq]
+                numAllTrues = ((queryInfo @ self._labels.T) > 0).sum(-1)
                 return matching, numAllTrues
+
+            @contextmanager
+            def device(self, device):
+                originalDevice = self._labels.device
+                self._labels = self._labels.to(device)
+                yield
+                self._labels = self._labels.to(originalDevice)
 
         return _dataset()
 

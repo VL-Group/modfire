@@ -14,13 +14,22 @@ with open("Imagelist.txt", "r") as fp:
 with open("AllTags81.txt", "r") as fp:
     allTags = fp.readlines()
 
+# remove entries that have all-zero tag.
+# As for test in 2022, there are 136,207 images have none of labels.
+# Then, database only has 128,441 images.
 allFiles = dict(zip(allImages, allTags))
+unusedFiles = dict(filter(lambda i: not any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
+
 
 filtered = dict()
+filtered = allFiles
 
 try:
     os.remove("temp.tar.gz")
-    shutil.rmtree("temp", ignore_errors=True)
+except FileNotFoundError:
+    pass
+shutil.rmtree("temp", ignore_errors=True)
+try:
     for chunk in glob.glob("*.tar.gz.*"):
         os.remove(chunk)
 except FileNotFoundError:
@@ -42,7 +51,11 @@ with tarfile.open("temp.tar.gz", mode="w:gz") as new:
         new.add(img, name, recursive=False)
         i += 1
 
+for key in unusedFiles.keys():
+    filtered.pop(key)
+
 imageList = [f"{key} {value}" for key, value in filtered.items()]
+unusedImageList = [f"{key} {value}" for key, value in unusedFiles.items()]
 
 for i in trange(100, desc="Shuffling", leave=False):
     random.shuffle(imageList)
@@ -55,7 +68,8 @@ with open("database.txt", "w") as fp:
 
 with open("query.txt", "w") as fp:
     fp.writelines(imageList[-5000:])
-
+with open("unused.txt", "w") as fp:
+    fp.writelines(unusedImageList)
 
 
 def chunks(fp, size):
@@ -72,15 +86,17 @@ with open("temp.tar.gz", "rb") as fp:
 # generate hash
 from modfire.utils import hashOfFile, hashOfStream, concatOfFiles
 chunkedFiles = glob.glob("*.tar.gz.*")
-for chunk in chunkedFiles:
-    hashValue = hashOfFile(chunk, getRichProgress())
-    newName = chunk.split(".")
-    newName = ".".join([newName[0] + f"_{hashValue[:8]}"] + newName[1:])
-    shutil.move(chunk, newName)
+with getRichProgress() as p:
+    for chunk in chunkedFiles:
+        hashValue = hashOfFile(chunk, p)
+        newName = chunk.split(".")
+        newName = ".".join([newName[0] + f"_{hashValue[:8]}"] + newName[1:])
+        shutil.move(chunk, newName)
 
-# check the hash of concated file equals to the original file
-originalHash = hashOfFile("temp.tar.gz", getRichProgress())
-chunkedFiles = glob.glob("*.tar.gz.*")
+    # check the hash of concated file equals to the original file
+    originalHash = hashOfFile("temp.tar.gz", p)
+    chunkedFiles = glob.glob("*.tar.gz.*")
+
 with concatOfFiles(sorted(chunkedFiles, key=lambda x: int(x.split(".")[-1]))) as stream:
 
     print("Calculating combined hash...")

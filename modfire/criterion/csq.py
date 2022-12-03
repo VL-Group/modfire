@@ -16,7 +16,7 @@ class CSQ(nn.Module):
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         # [N, C]
-        centerLoss = F.binary_cross_entropy_with_logits(x, y.float() @ self.centroids)
+        centerLoss = F.binary_cross_entropy_with_logits(x, y @ self.centroids)
         quantizationError = F.mse_loss(x.tanh(), x.sign())
         return centerLoss + quantizationError, { "centerLoss": centerLoss, "qError": quantizationError }
 
@@ -191,14 +191,12 @@ class CSQ_D(CSQ):
             centerForAllX = targetCenter.expand(len(subX), numClasses)
             # [N, class]
             loss = F.cross_entropy(xToAllCenter, centerForAllX, reduction="none")
-            mask = (y > 0)
-            floatMask = mask.float()
             # [N, class]
-            meanWeight = floatMask / floatMask.sum(-1, keepdim=True)
+            meanWeight = y / y.sum(-1, keepdim=True)
             # mask loss that label is zero
             # weighted sum over each sample for positive class
             # then mean over whole batch
-            loss = ((loss * mask) * meanWeight).sum() / len(loss)
+            loss = ((loss * y) * meanWeight).sum() / len(loss)
             netLoss.append(loss)
 
         codesToCenterDistance = list()

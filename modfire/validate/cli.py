@@ -82,11 +82,9 @@ def main(debug: bool, quiet: bool, export: bool, path: pathlib.Path, test: pathl
 
     checkConfigSummary(config, model)
 
-    validator = Validator(testConfig.NumReturns)
+    validator = Validator(testConfig.NumReturns, "cuda")
 
-    progress = getRichProgress()
-
-    with progress:
+    with getRichProgress() as progress:
         result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Database, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).QuerySplit, progress)
         logger.info(summary)
 

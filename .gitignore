@@ -10,7 +10,7 @@ tmp/
 cifar*/
 AllTags81.txt
 Imagelist.txt
-
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

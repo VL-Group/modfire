@@ -30,6 +30,12 @@ def entryPoint():
     pass
 
 
+
+@entryPoint.command(default=True)
+def defaultEntry():
+    pass
+
+
 @entryPoint.command()
 @click.option("-D", "--debug", is_flag=True, help="Set logging level to DEBUG to print verbose messages.")
 @click.option("-q", "--quiet", is_flag=True, help="Silence all messages, this option has higher priority to `-D/--debug`.")

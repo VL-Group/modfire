@@ -22,10 +22,9 @@ from rich.progress import TimeElapsedColumn, BarColumn, TimeRemainingColumn
 from modfire import Consts
 import modfire
 from modfire.config import Config
-from modfire.model.base import BaseWrapper
 
 
-def checkConfigSummary(config: Config, model: BaseWrapper):
+def checkConfigSummary(config: Config, model):
     summarys = config.Summary.split("_")
     if len(summarys) not in [5, 6]:
         raise ValueError(f"Summary in config has wrong number of descriptions. Expect: `5 or 6`, got: `{len(summarys)}`.")

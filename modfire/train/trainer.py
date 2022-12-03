@@ -109,7 +109,7 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
 
-        datasets = self._createDatasets(self.config, self.saver)
+        datasets = self._createDatasets(self.rank, self.config, self.saver)
 
         with DataLoader2(datasets["trainSet"].DataPipe, reading_service=DistributedReadingService()) as trainLoader:
 
@@ -124,7 +124,7 @@ class PalTrainer(Restorable):
 
     def _runAnEpoch(self, stepStartHook, stepFinishHook, trainLoader: DataLoader2, **__):
         self._model.train()
-        for images, targets in trainLoader:
+        for targets, images in trainLoader:
             self._stepStart(stepStartHook)
 
             self._optimizer.zero_grad()
@@ -167,7 +167,7 @@ class PalTrainer(Restorable):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
+    def _createDatasets(rank: int, config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
         trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
         # saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
@@ -177,7 +177,7 @@ class PalTrainer(Restorable):
         # saver.debug("Train and validation datasets mounted.")
         saver.debug("Training dataset mounted.")
         return {
-            "trainSet": trainSet,
+            "trainSet": trainSet
             # "database": database,
             # "querySet": querySet
         }
@@ -381,7 +381,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
+    def _createDatasets(rank: int, config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
         trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
         saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)

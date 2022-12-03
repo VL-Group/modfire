@@ -1,11 +1,15 @@
-from typing import Any, Tuple, List
+import logging
+from typing import Any, Tuple, List, Callable
 import abc
 import os
 from enum import Enum
+from contextlib import contextmanager
 
+from vlutils.base import Registry
 import torch
 from torch.utils.data import IterDataPipe
 from vlutils.saver import StrPath
+
 
 class Split(Enum):
     Train = 0,
@@ -23,6 +27,7 @@ class Split(Enum):
 
 class SplitBase(abc.ABC):
     _batchSize: int
+    _device: Any
     @property
     @abc.abstractmethod
     def DataPipe(self) -> IterDataPipe:
@@ -36,6 +41,11 @@ class SplitBase(abc.ABC):
         """If it is too big to determine dataset length, return -1
         """
         return -1
+
+    @contextmanager
+    @abc.abstractmethod
+    def device(self, device):
+        raise NotImplementedError
 
 
 class TrainSplit(SplitBase, abc.ABC):
@@ -78,14 +88,17 @@ class Dataset(abc.ABC):
         Returns:
             bool
         """
+        raise NotImplementedError
 
+    @staticmethod
     @abc.abstractmethod
-    def prepare(self, root: StrPath):
+    def prepare(root: StrPath, logger=logging) -> bool:
         """Check whether the dataset is downloaded and verified.
 
         Returns:
             bool
         """
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
@@ -118,3 +131,6 @@ class Dataset(abc.ABC):
     def Database(self) -> Database:
         if self.mode != Split.Database:
             raise ValueError(f"You try to create a database split from a dataset with mode {self.mode}.")
+
+class DatasetRegistry(Registry[Callable[..., Dataset]]):
+    pass

@@ -1,5 +1,7 @@
 import abc
 from typing import Any, Tuple, List
+import logging
+from contextlib import contextmanager
 
 from PIL import Image
 import torch
@@ -10,9 +12,13 @@ from torch.utils.data.datapipes.iter import IterableWrapper
 from torchvision.datasets import CIFAR10 as _c10, CIFAR100 as _c100
 from vlutils.saver import StrPath
 
-from modfire.dataset import Database, Dataset, TrainSplit, QuerySplit
-from modfire.dataset.utils import defaultTrainingDataPipe, defaultEvalDataPipe
+from ..dataset import Database, Dataset, TrainSplit, QuerySplit, DatasetRegistry
+from ..utils import defaultTrainingDataPipe, defaultEvalDataPipe, toDevice
 
+
+def loadImg(inputs):
+    i, img = inputs
+    return i, Image.fromarray(img)
 
 
 class CIFAR(Dataset, abc.ABC):
@@ -65,7 +71,14 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return defaultTrainingDataPipe(IterableWrapper(self._trains).map(Image.fromarray).zip(IterableWrapper(self._labels)), self._batchSize)
+                return defaultTrainingDataPipe(IterableWrapper(self._labels).zip(IterableWrapper(self._trains)).sharding_filter().map(loadImg), self._batchSize)
+
+            @contextmanager
+            def device(self, device):
+                originalDevice = self._labels.device
+                self._labels = self._labels.to(device)
+                yield
+                self._labels = self._labels.to(originalDevice)
         return _trainSet()
 
     @property
@@ -85,10 +98,17 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return defaultEvalDataPipe(IterableWrapper(self._queries).enumerate(), self._batchSize)
+                return defaultEvalDataPipe(IterableWrapper(self._queries).enumerate().sharding_filter().map(loadImg), self._batchSize)
             def info(self, indices: torch.Tensor) -> torch.Tensor:
                 # [Nq, nClass]
                 return self._allQueryLabels[indices]
+
+            @contextmanager
+            def device(self, device):
+                originalDevice = self._allQueryLabels.device
+                self._allQueryLabels = self._allQueryLabels.to(device)
+                yield
+                self._allQueryLabels = self._allQueryLabels.to(originalDevice)
         return _querySet()
 
     @property
@@ -107,7 +127,7 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self):
-                return defaultEvalDataPipe(IterableWrapper(self._database).enumerate(), self._batchSize)
+                return defaultEvalDataPipe(IterableWrapper(self._database).enumerate().sharding_filter().map(loadImg), self._batchSize)
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
                 """Return true positives based on query info.
 
@@ -119,17 +139,25 @@ class CIFAR(Dataset, abc.ABC):
                     torch.Tensor: [Nq, numReturns] true positives.
                     torch.Tensor: [Nq], Number of all trues w.r.t. query.
                 """
+                labels = self._baseLabels.to(rankList.device)
                 # NOTE: Here, queryInfo is label of queries.
                 # [Nq, k, nClass]
-                databaseLabels = self._baseLabels[rankList]
-                #                            [Nq, 1, nClass]
-                matching = torch.logical_and(queryInfo[:, None], databaseLabels).sum(-1) > 0
-                # [Nq, Nb, nclass] -> [Nq]
-                numAllTrues = (torch.logical_and(queryInfo[:, None], self._baseLabels).sum(-1) > 0).sum(-1)
+                databaseLabels = labels[rankList]
+                # [Nq, k]
+                matching = torch.einsum("qc,qkc->qk", queryInfo, databaseLabels) > 0
+                # [Nq, Nb] -> [Nq]
+                numAllTrues = ((queryInfo @ labels.T) > 0).sum(-1)
                 return matching, numAllTrues
+            @contextmanager
+            def device(self, device):
+                originalDevice = self._baseLabels.device
+                self._baseLabels = self._baseLabels.to(device)
+                yield
+                self._baseLabels = self._baseLabels.to(originalDevice)
         return _database()
 
 
+@DatasetRegistry.register
 class CIFAR10(CIFAR):
     def check(self) -> bool:
         try:
@@ -138,11 +166,10 @@ class CIFAR10(CIFAR):
             return False
         return True
 
-    def prepare(self) -> bool:
-        try:
-            _c10(root=self.root, download=True)
-        except RuntimeError:
-            return False
+    @staticmethod
+    def prepare(root: StrPath, logger = logging) -> bool:
+        logger.info("Start to prepare CIFAR-10...")
+        _c10(root=root, download=True)
         return True
 
     @staticmethod
@@ -156,12 +183,13 @@ class CIFAR10(CIFAR):
             randIdx = torch.randperm(len(allImages))
             allImages = allImages[randIdx]
             allTargets = allTargets[randIdx]
-        return allImages, F.one_hot(allTargets, num_classes=10) > 0
+        return allImages, F.one_hot(allTargets, num_classes=10).float()
 
     @property
     def Semantics(self) -> List[str]:
         return ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
+@DatasetRegistry.register
 class CIFAR100(CIFAR):
     def check(self) -> bool:
         try:
@@ -170,11 +198,10 @@ class CIFAR100(CIFAR):
             return False
         return True
 
-    def prepare(self) -> bool:
-        try:
-            _c100(root=self.root, download=True)
-        except RuntimeError:
-            return False
+    @staticmethod
+    def prepare(root: StrPath, logger = logging) -> bool:
+        logger.info("Start to prepare CIFAR-100...")
+        _c100(root=root, download=True)
         return True
     @staticmethod
     def getAlldata(root, shuffle: bool = True):
@@ -187,7 +214,7 @@ class CIFAR100(CIFAR):
             randIdx = torch.randperm(len(allImages))
             allImages = allImages[randIdx]
             allTargets = allTargets[randIdx]
-        return allImages, F.one_hot(allTargets, num_classes=100) > 0
+        return allImages, F.one_hot(allTargets, num_classes=100).float()
 
     @property
     def Semantics(self) -> List[str]:
