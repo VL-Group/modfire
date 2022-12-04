@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, Callable
 
 import torch
 from torch.utils.data import IterDataPipe
@@ -61,11 +61,11 @@ def mappedTrainTransform(inputs):
 def mappedEvalTransform(inputs):
     return inputs[0], EvalTransform(inputs[1])
 
-def defaultTrainingDataPipe(source: IterDataPipe, batchSize: int):
-    return source.shuffle().map(mappedTrainTransform).prefetch(batchSize * 2).batch(batchSize).collate()
+def defaultTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
+    return source.cycle().sharding_filter().map(mapFunctionAfterBaseConversion).shuffle().map(mappedTrainTransform).prefetch(batchSize * 65536).batch(batchSize).collate()
 
-def defaultEvalDataPipe(source: IterDataPipe, batchSize: int):
-    return source.map(mappedEvalTransform).prefetch(batchSize * 2).batch(batchSize).collate()
+def defaultEvalDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
+    return source.sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedEvalTransform).prefetch(batchSize * 2).batch(batchSize).collate()
 
 def toDevice(inputs, device):
     i, img = inputs

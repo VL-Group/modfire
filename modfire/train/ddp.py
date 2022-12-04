@@ -47,6 +47,7 @@ def initializeBaseConfigs(rank: int, worldSize: int, configHash: str, logger: Un
 
     dist.init_process_group("nccl", world_size=worldSize, rank=rank, init_method=f"file://{os.path.abspath(swapFilePath)}")
     logger.debug("Process group = `%s`, world size = `%d`", "NCCL", worldSize)
+    torch.set_printoptions(precision=1, threshold=4, edgeitems=1, sci_mode=False)
 
 def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.Path, loggingLevel: int):
     # load ckpt before create trainer, in case it moved to other place.

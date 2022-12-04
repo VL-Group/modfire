@@ -154,7 +154,7 @@ class NUS_WIDE(Dataset):
             def DataPipe(self) -> IterDataPipe:
                 imgs = IterableWrapper(self._images)
                 labels = IterableWrapper(self._labels)
-                return defaultTrainingDataPipe(labels.zip(imgs).sharding_filter().map(loadImg), self._batchSize)
+                return defaultTrainingDataPipe(labels.zip(imgs), loadImg, self._batchSize)
             def __len__(self):
                 return len(self._images)
 
@@ -177,7 +177,7 @@ class NUS_WIDE(Dataset):
             @property
             def DataPipe(self) -> IterDataPipe:
                 imgs = IterableWrapper(self._images)
-                return defaultEvalDataPipe(imgs.enumerate().sharding_filter().map(loadImg), self._batchSize)
+                return defaultEvalDataPipe(imgs.enumerate(), loadImg, self._batchSize)
             def __len__(self):
                 return len(self._images)
             def info(self, indices) -> torch.Tensor:
@@ -202,7 +202,7 @@ class NUS_WIDE(Dataset):
             @property
             def DataPipe(self) -> IterDataPipe:
                 imgs = IterableWrapper(self._images)
-                return defaultEvalDataPipe(imgs.enumerate().sharding_filter().map(loadImg), self._batchSize)
+                return defaultEvalDataPipe(imgs.enumerate(), loadImg, self._batchSize)
             def __len__(self):
                 return len(self._images)
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:

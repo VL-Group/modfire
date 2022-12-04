@@ -23,7 +23,6 @@ __all__ = [
     "CriterionRegistry",
     "OptimRegistry",
     "HookRegistry",
-    "FunctionRegistry",
     "DatasetRegistry"
 ]
 
@@ -32,9 +31,6 @@ class OptimRegistry(Registry[Callable[..., Optimizer]]):
 
 
 class HookRegistry(Registry[Any]):
-    pass
-
-class FunctionRegistry(Registry[Callable]):
     pass
 
 

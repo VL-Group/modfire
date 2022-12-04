@@ -115,25 +115,29 @@ class PalTrainer(Restorable):
 
             self._beforeRun(beforeRunHook, **datasets)
 
-            for _ in range(self._epoch, self.config.Train.Epoch):
-                self._epochStart(epochStartHook, **datasets)
-                self._runAnEpoch(stepStartHook, stepFinishHook, trainLoader)
-                self._epochFinish(epochFinishHook, **datasets)
+            batchesOneEpoch = math.ceil(len(datasets["trainSet"]) / (datasets["trainSet"].BatchSize * self.worldSize))
+            totalBatches = batchesOneEpoch * self.config.Train.Epoch
+
+            # A forever dataLoader
+            for targets, images in trainLoader:
+                if self._step % batchesOneEpoch == 0:
+                    self._epochStart(epochStartHook, **datasets)
+
+                # Main loop
+                self._stepStart(stepStartHook)
+                self._optimizer.zero_grad()
+                z = self._model(images.to(self.rank, non_blocking=True))
+                loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True))
+                loss.backward()
+                self._optimizer.step()
+                self._stepFinish(stepFinishHook, loss=loss, stats=stats)
+                if self._step % batchesOneEpoch == 0:
+                    self._epochFinish(epochFinishHook, **datasets)
+                if self._step > totalBatches:
+                    break
+
             self._afterRun(afterRunHook)
 
-
-    def _runAnEpoch(self, stepStartHook, stepFinishHook, trainLoader: DataLoader2, **__):
-        self._model.train()
-        for targets, images in trainLoader:
-            self._stepStart(stepStartHook)
-
-            self._optimizer.zero_grad()
-            z = self._model(images.to(self.rank, non_blocking=True))
-            loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True))
-            loss.backward()
-            self._optimizer.step()
-
-            self._stepFinish(stepFinishHook, loss=loss, stats=stats)
 
     @staticmethod
     def _preRegistration(config: Config, saver: Saver):
@@ -205,9 +209,10 @@ class PalTrainer(Restorable):
     def _createCriterion(rank: int, config: Config, saver: Saver) -> DistributedDataParallel:
         saver.debug("Creating criterion...")
         criterionFn = trackingFunctionCalls(CriterionRegistry.get(config.Train.Criterion.Key), saver)
-        criterion = criterionFn(**config.Train.Criterion.Params)
-        criterion = DistributedDataParallel(criterion.to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
-        criterion = torch.nn.SyncBatchNorm.convert_sync_batchnorm(criterion)
+        criterion = criterionFn(**config.Train.Criterion.Params).to(rank)
+        if any((p.requires_grad for p in criterion.parameters())):
+            criterion = DistributedDataParallel(criterion, device_ids=[rank], output_device=rank, find_unused_parameters=False)
+            criterion = torch.nn.SyncBatchNorm.convert_sync_batchnorm(criterion)
         saver.debug("criterion created. #Params: %s.", totalParameters(criterion))
         return criterion
 
@@ -273,6 +278,8 @@ class PalTrainer(Restorable):
         gc.collect()
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
+        self._model.train()
+
     def _epochFinish(self, hook, *args, **kwArgs):
         self._epoch += 1
 
@@ -295,8 +302,8 @@ class MainTrainer(PalTrainer, SafeTerminate):
         SafeTerminate.__init__(self, self.saver)
         # Running depedencies
         self.progress = getRichProgress().__enter__()
-        self.trainingBar = self.progress.add_task("", start=False, progress="[----/----]", suffix=Consts.CDot * 10)
         self.epochBar = self.progress.add_task("[----/----]", start=False, progress="", suffix=Consts.CDot * 10)
+        self.trainingBar = self.progress.add_task("", start=False, progress="[----/----]", suffix=Consts.CDot * 10)
 
         self.validator = Validator(self.config.Train.NumReturns)
 

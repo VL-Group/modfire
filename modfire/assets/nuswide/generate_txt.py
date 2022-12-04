@@ -6,6 +6,7 @@ import os
 import glob
 from tqdm.rich import tqdm, trange
 from modfire.utils import getRichProgress
+from PIL import Image
 
 # Download from https://lms.comp.nus.edu.sg/wp-content/uploads/2019/research/nuswide/NUS-WIDE.html
 with open("Imagelist.txt", "r") as fp:
@@ -17,11 +18,10 @@ with open("AllTags81.txt", "r") as fp:
 # remove entries that have all-zero tag.
 # As for test in 2022, there are 136,207 images have none of labels.
 # Then, database only has 128,441 images.
-allFiles = dict(zip(allImages, allTags))
+allFiles = dict(filter(lambda i: any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
 unusedFiles = dict(filter(lambda i: not any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
 
 
-filtered = dict()
 filtered = allFiles
 
 try:
@@ -43,16 +43,23 @@ with tarfile.open("NUS-WIDE.tar.gz", mode="r:gz") as original:
 # a tar with only images in root
 with tarfile.open("temp.tar.gz", mode="w:gz") as new:
     allImages = glob.glob("temp/**/*.jpg", recursive=True)
-    i = 0
-    for img in tqdm(allImages, desc="Adding to temp.tar.gz", leave=False):
+    for img in tqdm(allImages, desc="Adding to temp.tar.gz", leave=True):
+        # remove corrupted image
+        try:
+            Image.open(img).verify()
+        except:
+            print(f"{img} corrupted.")
+            if img in allFiles:
+                allFiles.pop(img)
+                print("popped from allFiles")
+            if img in unusedFiles:
+                unusedFiles.pop(img)
+                print("popped from unusedFiles")
+            continue
         path = pathlib.Path(img)
         name = path.name
-        filtered[name] = allFiles[name]
         new.add(img, name, recursive=False)
-        i += 1
 
-for key in unusedFiles.keys():
-    filtered.pop(key)
 
 imageList = [f"{key} {value}" for key, value in filtered.items()]
 unusedImageList = [f"{key} {value}" for key, value in unusedFiles.items()]

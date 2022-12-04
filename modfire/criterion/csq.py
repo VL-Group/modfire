@@ -1,37 +1,48 @@
+import logging
+
 from scipy.linalg import hadamard
 import torch
 from torch import nn
 import torch.nn.functional as F
 
+from modfire import Consts
+
 from .utils import pairwiseHamming, CriterionRegistry
 
+logger = logging.getLogger(Consts.Name)
 
 @CriterionRegistry.register
 class CSQ(nn.Module):
     centroids: torch.Tensor
     def __init__(self, bits: int, numClasses: int, _lambda: float = 1e-4) -> None:
         super().__init__()
+        self.bits = bits
         self.register_buffer("centroids", self.generateCentroids(bits, numClasses))
         self._lambda = _lambda
 
+    def meanOfCode(self, y: torch.Tensor):
+        # [n, bits]
+        return ((y @ self.centroids) > (y.sum(-1, keepdim=True) / 2)).float()
+
     def forward(self, x: torch.Tensor, y: torch.Tensor):
-        # [N, C]
-        centerLoss = F.binary_cross_entropy_with_logits(x, y @ self.centroids)
+        centerLoss = F.binary_cross_entropy_with_logits(x, self.meanOfCode(y))
         quantizationError = F.mse_loss(x.tanh(), x.sign())
         return centerLoss + quantizationError, { "centerLoss": centerLoss, "qError": quantizationError }
 
     @staticmethod
     def generateCentroids(bits: int, numClasses: int):
         if numClasses > 2 * bits:
+            logger.debug("Use random center.")
             return CSQ._randomCode(bits, numClasses).float()
         else:
+            logger.debug("Use Hadamard center.")
             return CSQ._hadamardCode(bits, numClasses).float()
 
     @staticmethod
     def _randomCode(bits: int, numClasses: int) -> torch.Tensor:
         best = None
         bestDis = float("-inf")
-        for _ in range(100):
+        for _ in range(10000):
             sampled = torch.rand((numClasses, bits)) > 0.5
             distance = pairwiseHamming(sampled)
             if float(distance[distance > 0].min()) > bestDis:
@@ -39,6 +50,7 @@ class CSQ(nn.Module):
                 bestDis = float(distance[distance > 0].min())
         if best is None:
             raise RuntimeError("Failed to create random centers.")
+        logger.debug("Random center min distance: %.2f", bestDis)
         return best
 
     @staticmethod
@@ -142,7 +154,7 @@ class CSQ_D(CSQ):
         # reset permIdx
         self.permIdx.data.copy_(torch.randperm(self.m * 8, device=self.permIdx.device))
         # reset params
-        self.mapper.reset()
+        # self.mapper.reset()
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
         self._ticker += 1
@@ -191,12 +203,10 @@ class CSQ_D(CSQ):
             centerForAllX = targetCenter.expand(len(subX), numClasses)
             # [N, class]
             loss = F.cross_entropy(xToAllCenter, centerForAllX, reduction="none")
-            # [N, class]
-            meanWeight = y / y.sum(-1, keepdim=True)
             # mask loss that label is zero
             # weighted sum over each sample for positive class
             # then mean over whole batch
-            loss = ((loss * y) * meanWeight).sum() / len(loss)
+            loss = (((loss * y)).sum(-1) / y.sum(-1)).sum() / len(loss)
             netLoss.append(loss)
 
         codesToCenterDistance = list()

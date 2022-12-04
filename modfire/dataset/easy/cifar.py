@@ -71,7 +71,7 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return defaultTrainingDataPipe(IterableWrapper(self._labels).zip(IterableWrapper(self._trains)).sharding_filter().map(loadImg), self._batchSize)
+                return defaultTrainingDataPipe(IterableWrapper(self._labels).zip(IterableWrapper(self._trains)), loadImg, self._batchSize)
 
             @contextmanager
             def device(self, device):
@@ -98,7 +98,7 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self) -> IterDataPipe:
-                return defaultEvalDataPipe(IterableWrapper(self._queries).enumerate().sharding_filter().map(loadImg), self._batchSize)
+                return defaultEvalDataPipe(IterableWrapper(self._queries).enumerate(), loadImg, self._batchSize)
             def info(self, indices: torch.Tensor) -> torch.Tensor:
                 # [Nq, nClass]
                 return self._allQueryLabels[indices]
@@ -127,7 +127,7 @@ class CIFAR(Dataset, abc.ABC):
                 return self._batchSize
             @property
             def DataPipe(self):
-                return defaultEvalDataPipe(IterableWrapper(self._database).enumerate().sharding_filter().map(loadImg), self._batchSize)
+                return defaultEvalDataPipe(IterableWrapper(self._database).enumerate(), loadImg, self._batchSize)
             def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
                 """Return true positives based on query info.
 
