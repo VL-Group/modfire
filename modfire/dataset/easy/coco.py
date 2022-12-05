@@ -112,7 +112,7 @@ class COCO(Dataset):
         logger.info("Verifying...")
 
         chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*"))
-        if len(chunkedFiles) != 3:
+        if len(chunkedFiles) != len(_FILE_URL):
             raise ValueError(f"Find incorrect downloaded files. File list is {chunkedFiles}.")
         with concatOfFiles(sorted(chunkedFiles, key=lambda x: int(x.split(".")[-1]))) as stream:
             hashValue = hashOfStream(stream)

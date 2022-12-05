@@ -20,7 +20,6 @@ from vlutils.logger import trackingFunctionCalls
 from vlutils.base import Restorable
 from vlutils.runtime import relativePath
 from vlutils.config import summary
-from modfire.model.base import BaseWrapper
 
 import modfire.utils.registry
 from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry
@@ -109,7 +108,7 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
 
-        datasets = self._createDatasets(self.rank, self.config, self.saver)
+        datasets = self._createDatasets(self.config, self.saver)
 
         with DataLoader2(datasets["trainSet"].DataPipe, reading_service=DistributedReadingService()) as trainLoader:
 
@@ -118,10 +117,13 @@ class PalTrainer(Restorable):
             batchesOneEpoch = math.ceil(len(datasets["trainSet"]) / (datasets["trainSet"].BatchSize * self.worldSize))
             totalBatches = batchesOneEpoch * self.config.Train.Epoch
 
+            self._model.train()
+
             # A forever dataLoader
             for targets, images in trainLoader:
                 if self._step % batchesOneEpoch == 0:
                     self._epochStart(epochStartHook, **datasets)
+                    self._model.train()
 
                 # Main loop
                 self._stepStart(stepStartHook)
@@ -132,7 +134,11 @@ class PalTrainer(Restorable):
                 self._optimizer.step()
                 self._stepFinish(stepFinishHook, loss=loss, stats=stats)
                 if self._step % batchesOneEpoch == 0:
-                    self._epochFinish(epochFinishHook, **datasets)
+                    try:
+                        self._epochFinish(epochFinishHook, **datasets)
+                    except StopIteration:
+                        break
+                    self._model.train()
                 if self._step > totalBatches:
                     break
 
@@ -171,7 +177,7 @@ class PalTrainer(Restorable):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(rank: int, config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
+    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
         trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
         # saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
@@ -246,15 +252,19 @@ class PalTrainer(Restorable):
         return scheduler, schdrFn
 
     def _beforeRun(self, hook, *args, **kwArgs):
+        self.saver.debug("Call `_beforeRun()`.")
         self.saver.info("Start training.")
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
         self.saver.info("See you at `%s`", self.saver.TensorboardURL)
+        self.saver.debug("End call `_beforeRun()`.")
 
     def _afterRun(self, hook, *args, **kwArgs):
+        self.saver.debug("Call `_afterRun()`.")
         self.saver.debug("Training loop finished.")
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
+        self.saver.debug("End call `_afterRun()`.")
 
     def _stepStart(self, hook, *args, **kwArgs):
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
@@ -272,15 +282,17 @@ class PalTrainer(Restorable):
         hook(self._step, self._epoch, self, *args, logger=self.saver, loss=loss, **kwArgs)
 
     def _epochStart(self, hook, *args, **kwArgs):
+        self.saver.debug("Call `_epochStart()`.")
         self.saver.debug("Epoch %4d started.", self._epoch + 1)
 
         gc.collect()
         gc.collect()
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
-        self._model.train()
+        self.saver.debug("End call `_epochStart()`.")
 
     def _epochFinish(self, hook, *args, **kwArgs):
+        self.saver.debug("Call `_epochFinish()`.")
         self._epoch += 1
 
         self.saver.debug("Epoch %4d finished.", self._epoch)
@@ -288,12 +300,14 @@ class PalTrainer(Restorable):
 
         dist.broadcast(self.earlyStopFlag, 0)
         if self.earlyStopFlag:
+            self.saver.info("Early stopped at epoch %4d.", self._epoch)
             raise StopIteration
 
         self._scheduler.step()
         self.saver.debug("Lr is set to %.2e.", self._scheduler.get_last_lr()[0])
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
+        self.saver.debug("End call `_epochFinish()`.")
 
 
 class MainTrainer(PalTrainer, SafeTerminate):
@@ -388,7 +402,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod
-    def _createDatasets(rank: int, config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
+    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
         saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
         trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
         saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
@@ -437,7 +451,6 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.saver.debug("End validation at epoch %4d.", self._epoch)
 
     def earlyStop(self):
-        self.saver.info("Early stop at epoch %4d.", self._epoch)
         self.earlyStopFlag.data.copy_(torch.tensor([True]))
 
 

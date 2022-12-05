@@ -9,20 +9,41 @@ from modfire.utils import getRichProgress
 from PIL import Image
 
 # Download from https://lms.comp.nus.edu.sg/wp-content/uploads/2019/research/nuswide/NUS-WIDE.html
-with open("Imagelist.txt", "r") as fp:
-    allImages = [x.strip().split("\\")[-1] for x in fp.readlines()]
+# with open("Imagelist.txt", "r") as fp:
+#     allImages = [x.strip().split("\\")[-1] for x in fp.readlines()]
 
-with open("AllTags81.txt", "r") as fp:
-    allTags = fp.readlines()
+# with open("AllTags81.txt", "r") as fp:
+#     allTags = fp.readlines()
 
 # remove entries that have all-zero tag.
 # As for test in 2022, there are 136,207 images have none of labels.
 # Then, database only has 128,441 images.
-allFiles = dict(filter(lambda i: any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
-unusedFiles = dict(filter(lambda i: not any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
+# allFiles = dict(filter(lambda i: any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
+# unusedFiles = dict(filter(lambda i: not any(map(lambda x: x > 0, map(int, i[1].strip().split()))), zip(allImages, allTags)))
 
 
-filtered = allFiles
+# filtered = allFiles
+# Use https://github.com/swuxyj/DeepHash-pytorch/blob/master/data/nuswide_21/ instead
+# Since the offical 81 tags are low quality.
+def readImageList(path: str):
+    def _parse(oneLine: str):
+        return oneLine.split(maxsplit=1)
+    with open(path, "r") as fp:
+        allLines = filter(None, (line.strip() for line in fp.readlines()))
+    allImages, allLabels = list(), list()
+    for line in allLines:
+        img, labels = _parse(line)
+        allImages.append(img.split("/")[-1])
+        allLabels.append(list(map(int, labels.split())))
+    return { k: v for k, v in zip(allImages, allLabels) }
+
+database = readImageList("database.txt")
+train = readImageList("database.txt")
+query = readImageList("test.txt")
+
+allFiles = database
+allFiles.update(train)
+allFiles.update(query)
 
 try:
     os.remove("temp.tar.gz")
@@ -52,17 +73,17 @@ with tarfile.open("temp.tar.gz", mode="w:gz") as new:
             if img in allFiles:
                 allFiles.pop(img)
                 print("popped from allFiles")
-            if img in unusedFiles:
-                unusedFiles.pop(img)
-                print("popped from unusedFiles")
+            # if img in unusedFiles:
+            #     unusedFiles.pop(img)
+            #     print("popped from unusedFiles")
             continue
         path = pathlib.Path(img)
         name = path.name
         new.add(img, name, recursive=False)
 
 
-imageList = [f"{key} {value}" for key, value in filtered.items()]
-unusedImageList = [f"{key} {value}" for key, value in unusedFiles.items()]
+imageList = [key + " " + " ".join(map(str, value)) for key, value in allFiles.items()]
+# unusedImageList = [f"{key} {value}" for key, value in unusedFiles.items()]
 
 for i in trange(100, desc="Shuffling", leave=False):
     random.shuffle(imageList)
@@ -75,8 +96,8 @@ with open("database.txt", "w") as fp:
 
 with open("query.txt", "w") as fp:
     fp.writelines(imageList[-5000:])
-with open("unused.txt", "w") as fp:
-    fp.writelines(unusedImageList)
+# with open("unused.txt", "w") as fp:
+#     fp.writelines(unusedImageList)
 
 
 def chunks(fp, size):

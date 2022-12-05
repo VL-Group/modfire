@@ -1,0 +1,55 @@
+$schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
+summary: 32bits_Hash_CSQ_resnet50_coco
+model:
+  key: HashModel
+  params:
+    bits: 32
+    backbone: resnet50
+    hashMethod: LogitHash
+train:
+  earlyStop: 10
+  epoch: 500
+  valFreq: 25
+  numReturns: 5000
+  trainer: BaseTrainer
+  trainSet:
+    key: COCO
+    params:
+      root: data/easy/coco/
+      batchSize: 128
+      mode: Train
+  querySet:
+    key: COCO
+    params:
+      root: data/easy/coco/
+      batchSize: 128
+      mode: Query
+  database:
+    key: COCO
+    params:
+      root: data/easy/coco/
+      batchSize: 128
+      mode: Database
+  saveDir: saved/csq/easy/coco/32bits/
+  criterion:
+    key: CSQ
+    params:
+      bits: 32
+      numClasses: 80
+  externalLib: []
+    # - some/modules/to/be/registered1.py
+    # - some/modules/to/be/registered2.py
+  optim:
+    key: Lamb
+    params:
+      lr: 1.e-3
+      # for Lamb: 0.01, for others: 1e-4
+      weight_decay: 0.01
+  schdr:
+    key: CosineAnnealingLR
+    params:
+      T_max: 500
+  gpu:
+    gpus: 1
+    vRam: -1
+    wantsMore: false

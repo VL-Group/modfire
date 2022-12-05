@@ -148,5 +148,10 @@ if originalHash != combinedHash:
 
 os.remove("temp.tar.gz")
 shutil.rmtree("temp", ignore_errors=True)
+shutil.rmtree("train2017", ignore_errors=True)
+shutil.rmtree("annotations", ignore_errors=True)
+shutil.rmtree("val2017", ignore_errors=True)
 # IMPORTANT: USED IN modfire.dataset.easy.nuswide
 print(f"All check passed. Global hash: {originalHash}")
+
+print(sortedLabels)

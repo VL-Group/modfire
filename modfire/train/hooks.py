@@ -139,7 +139,7 @@ def splitHooks(*hooks: Union[Callable, BeforeRunHook, AfterRunHook, EpochStartHo
         elif hasattr(hook, "hookType"):
             allHooks[hook.hookType].append(hook)
         else:
-            raise ValueError(f"Unknown hook type of given value `{hook}`.")
+            continue
 
     return {
         k: ChainHook(*v) for k, v in allHooks.items()

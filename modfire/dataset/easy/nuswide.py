@@ -22,12 +22,12 @@ from modfire.utils import concatOfFiles, hashOfFile, hashOfStream, getRichProgre
 
 _ASSETS_PATH = Consts.AssetsPath.joinpath("nuswide")
 _FILE_URL = [
-    "https://github.com/VL-Group/modfire/releases/download/nus-wide/NUS-WIDE_cd909bce.tar.gz.0",
-    "https://github.com/VL-Group/modfire/releases/download/nus-wide/NUS-WIDE_873c354e.tar.gz.1",
-    "https://github.com/VL-Group/modfire/releases/download/nus-wide/NUS-WIDE_529bd7dd.tar.gz.2"
+    "https://github.com/VL-Group/modfire/releases/download/nus-wide/NUS-WIDE_f257ab5d.tar.gz.0",
+    "https://github.com/VL-Group/modfire/releases/download/nus-wide/NUS-WIDE_7bbf8389.tar.gz.1",
+    "https://github.com/VL-Group/modfire/releases/download/nus-wide/NUS-WIDE_22cf28ce.tar.gz.2"
 ]
-_GLOBAL_HASH = "71bf207c"
-_FILE_COUNT = 269648
+_GLOBAL_HASH = "9bfee934"
+_FILE_COUNT = 223496
 ALL_CONCEPTS = ["airport", "animal", "beach", "bear", "birds", "boats", "book", "bridge", "buildings", "cars", "castle", "cat", "cityscape", "clouds", "computer", "coral", "cow", "dancing", "dog", "earthquake", "elk", "fire", "fish", "flags", "flowers", "food", "fox", "frost", "garden", "glacier", "grass", "harbor", "horses", "house", "lake", "leaf", "map", "military", "moon", "mountain", "nighttime", "ocean", "person", "plane", "plants", "police", "protest", "railroad", "rainbow", "reflection", "road", "rocks", "running", "sand", "sign", "sky", "snow", "soccer", "sports", "statue", "street", "sun", "sunset", "surf", "swimmers", "tattoo", "temple", "tiger", "tower", "town", "toy", "train", "tree", "valley", "vehicle", "water", "waterfall", "wedding", "whales", "window", "zebra"]
 
 
@@ -106,7 +106,7 @@ class NUS_WIDE(Dataset):
         logger.info("Verifying...")
 
         chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*"))
-        if len(chunkedFiles) != 3:
+        if len(chunkedFiles) != len(_FILE_URL):
             raise ValueError(f"Find incorrect downloaded files. File list is {chunkedFiles}.")
         with concatOfFiles(sorted(chunkedFiles, key=lambda x: int(x.split(".")[-1]))) as stream:
             hashValue = hashOfStream(stream)

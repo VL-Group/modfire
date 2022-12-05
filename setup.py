@@ -7,6 +7,7 @@ if "ADD_ENTRY" in os.environ:
     console_scripts = [
         "modfire = modfire.cli:entryPoint",
         "modfire-train = modfire.train.cli:entryPoint",
+        "modfire-dataset = modfire.dataset.cli:entryPoint",
         "modfire-validate = modfire.validate.cli:entryPoint"
     ]
     setupArgs.update({

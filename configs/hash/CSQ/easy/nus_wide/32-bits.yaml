@@ -15,19 +15,19 @@ train:
   trainSet:
     key: NUS_WIDE
     params:
-      root: data/test/nus/
+      root: data/easy/nuswide/
       batchSize: 128
       mode: Train
   querySet:
     key: NUS_WIDE
     params:
-      root: data/test/nus/
+      root: data/easy/nuswide/
       batchSize: 128
       mode: Query
   database:
     key: NUS_WIDE
     params:
-      root: data/test/nus/
+      root: data/easy/nuswide/
       batchSize: 128
       mode: Database
   saveDir: saved/csq/easy/nus/32bits/
