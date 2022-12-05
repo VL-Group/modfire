@@ -94,7 +94,7 @@ class BinaryWrapper(BaseWrapper):
     def add(self, database: Database, progress: Optional[Progress] = None):
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=len(database), progress=f" {0:.1f}k", suffix="")
-        dataLoader = DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)) * 2, 16)))
+        dataLoader = DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16)))
         total = 0
         for idx, image in dataLoader:
             # [N, bits]
@@ -118,7 +118,7 @@ class BinaryWrapper(BaseWrapper):
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:.1f}k", suffix="")
-        dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)) * 2, 16)))
+        dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16)))
         total = 0
         for idx, image in dataLoader:
             # [N, bits]
@@ -151,7 +151,7 @@ class PQWrapper(BaseWrapper):
     def add(self, database: Database, progress: Optional[Progress] = None):
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=len(database), progress=f" {0:.1f}k", suffix="")
-        dataLoader = DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=8))
+        dataLoader = DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16)))
         total = 0
         for idx, image in dataLoader:
             # [N, D]
@@ -176,7 +176,7 @@ class PQWrapper(BaseWrapper):
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:4d}", suffix="")
-        dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=8))
+        dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16)))
         total = 0
         for idx, image in dataLoader:
             # [D]

@@ -8,11 +8,13 @@ import torch
 from vlutils.saver import Saver
 from vlutils.base.freqHook import ChainHook, FrequecyHook
 from vlutils.logger import functionFullName, LoggerBase
+from vlutils.base import Registry
 
 from modfire.config import General
-from modfire.utils.registry import HookRegistry
 from modfire.utils import nop
 
+class HookRegistry(Registry[Any]):
+    pass
 
 class HookType(Enum):
     BeforeRunHook = "beforeRunHook"
@@ -130,6 +132,7 @@ def splitHooks(*hooks: Union[Callable, BeforeRunHook, AfterRunHook, EpochStartHo
         StepStartHook: "stepStart",
         StepFinishHook: "stepFinish"
     }
+
 
     for hook in hooks:
         if isinstance(hook, (BeforeRunHook, AfterRunHook, EpochStartHook, EpochFinishHook, StepStartHook, StepFinishHook)):

@@ -13,6 +13,7 @@ from vlutils.base import Registry
 from modfire.dataset import DatasetRegistry
 from modfire.model import ModelRegistry
 from modfire.criterion import CriterionRegistry
+from modfire.train.hooks import HookRegistry
 import modfire.train.schedulers
 
 SchdrRegistry = modfire.train.schedulers.SchdrRegistry
@@ -27,10 +28,6 @@ __all__ = [
 ]
 
 class OptimRegistry(Registry[Callable[..., Optimizer]]):
-    pass
-
-
-class HookRegistry(Registry[Any]):
     pass
 
 

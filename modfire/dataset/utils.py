@@ -62,10 +62,10 @@ def mappedEvalTransform(inputs):
     return inputs[0], EvalTransform(inputs[1])
 
 def defaultTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
-    return source.cycle().sharding_filter().map(mapFunctionAfterBaseConversion).shuffle().map(mappedTrainTransform).prefetch(batchSize * 65536).batch(batchSize).collate()
+    return source.cycle().shuffle().sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedTrainTransform).prefetch(batchSize).batch(batchSize).collate()
 
 def defaultEvalDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
-    return source.sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedEvalTransform).prefetch(batchSize * 2).batch(batchSize).collate()
+    return source.sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedEvalTransform).prefetch(batchSize).batch(batchSize).collate()
 
 def toDevice(inputs, device):
     i, img = inputs

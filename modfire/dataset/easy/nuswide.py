@@ -164,6 +164,9 @@ class NUS_WIDE(Dataset):
                 self._labels = self._labels.to(device)
                 yield
                 self._labels = self._labels.to(originalDevice)
+            @property
+            def NumClass(self) -> int:
+                return len(ALL_CONCEPTS)
 
         return _dataset()
 

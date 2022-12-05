@@ -171,6 +171,10 @@ class COCO(Dataset):
                 yield
                 self._labels = self._labels.to(originalDevice)
 
+            @property
+            def NumClass(self) -> int:
+                return len(ALL_CONCEPTS)
+
         return _dataset()
 
     @property

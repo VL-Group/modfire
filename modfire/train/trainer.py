@@ -12,7 +12,7 @@ import sys
 import torch
 from torch.nn.parallel import DistributedDataParallel
 from torch import distributed as dist
-from torchdata.dataloader2 import DataLoader2, DistributedReadingService
+from torchdata.dataloader2 import DataLoader2, MultiProcessingReadingService
 from vlutils.base import Registry
 from vlutils.base.freqHook import ChainHook
 from vlutils.saver import Saver
@@ -30,7 +30,7 @@ from modfire.validate import Validator, metrics
 from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate, checkConfigSummary
 from modfire.dataset import QuerySplit, Database, TrainSplit
 
-from .hooks import EpochFrequencyHook, checkHook
+from .hooks import EpochFrequencyHook, checkHook, splitHooks
 from .utils import EMATracker, PrettyStep, getSaver, setWeightDecay
 
 
@@ -106,11 +106,15 @@ class PalTrainer(Restorable):
         self.saver.debug("LR scheduler reset.")
 
     def train(self):
-        beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver)
+        beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver, self._model, self._criterion)
 
         datasets = self._createDatasets(self.config, self.saver)
 
-        with DataLoader2(datasets["trainSet"].DataPipe, reading_service=DistributedReadingService()) as trainLoader:
+
+        # The DistributedReadingService is too slow since it use only one worker per node.
+        # NOTE: cancel the comment once if the above issue is fixed.
+        # with DataLoader(datasets["trainSet"].DataPipe, reading_service=DistributedReadingService()) as trainLoader:
+        with DataLoader2(datasets["trainSet"].DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(datasets["trainSet"].BatchSize)), 16), pin_memory=True, persistent_workers=True)) as trainLoader:
 
             self._beforeRun(beforeRunHook, **datasets)
 
@@ -142,7 +146,7 @@ class PalTrainer(Restorable):
                 if self._step > totalBatches:
                     break
 
-            self._afterRun(afterRunHook)
+        self._afterRun(afterRunHook)
 
 
     @staticmethod
@@ -165,9 +169,19 @@ class PalTrainer(Restorable):
                 saver.debug("Summary of %s: \r\n%s", registry, registry.summary())
 
     @staticmethod
-    def _createHooks(config: Config, saver: Saver):
+    def _createHooks(config: Config, saver: Saver, model, criterion):
         allHooks = getAllHooks(config.Train.Hooks)
+
+        modelHooks = splitHooks(*[m.module if isinstance(m, DistributedDataParallel) else m for m in [model, criterion]])
+
+        # allHooks = dict()
+        for key in modelHooks.keys():
+            allHooks[str(key)] = ChainHook(allHooks[str(key)], modelHooks[key])
+
+
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = allHooks["beforeRunHook"], allHooks["afterRunHook"], allHooks["stepStartHook"], allHooks["stepFinishHook"], allHooks["epochStartHook"], allHooks["epochFinishHook"]
+
+
         beforeRunHook = checkHook(beforeRunHook, "BeforeRunHook", saver)
         afterRunHook = checkHook(afterRunHook, "AfterRunHook", saver)
         stepStartHook = checkHook(stepStartHook, "StepStartHook", saver)
@@ -384,13 +398,12 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.progress.reset(self.trainingBar)
         super()._epochStart(hook, *args, trainSet=trainSet, **kwArgs)
 
-    def _createHooks(self, config: Config, saver: Saver):
-        allHooks = getAllHooks(config.Train.Hooks)
-        beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = allHooks["beforeRunHook"], allHooks["afterRunHook"], allHooks["stepStartHook"], allHooks["stepFinishHook"], allHooks["epochStartHook"], allHooks["epochFinishHook"]
-        beforeRunHook = checkHook(beforeRunHook, "BeforeRunHook", saver)
+    def _createHooks(self, config: Config, saver: Saver, model, criterion):
+        beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = super()._createHooks(config, saver, model, criterion)
+
+        saver.debug("Add additional hooks in `MainTrainer`.")
+
         afterRunHook = checkHook(ChainHook(self.validate, afterRunHook), "AfterRunHook", saver)
-        stepStartHook = checkHook(stepStartHook, "StepStartHook", saver)
-        stepFinishHook = checkHook(stepFinishHook, "StepFinishHook", saver)
         epochStartHook = checkHook(ChainHook(
             EpochFrequencyHook(
                 (config.Train.ValFreq, self.validate), logger=saver

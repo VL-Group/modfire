@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from scipy.linalg import hadamard
 import torch
@@ -6,19 +7,28 @@ from torch import nn
 import torch.nn.functional as F
 
 from modfire import Consts
+import modfire.train.hooks
 
 from ..utils import pairwiseHamming, CriterionRegistry
 
 logger = logging.getLogger(Consts.Name)
 
 @CriterionRegistry.register
-class CSQ(nn.Module):
+class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
     centroids: torch.Tensor
     def __init__(self, bits: int, numClasses: int, _lambda: float = 1e-4) -> None:
         super().__init__()
         self.bits = bits
         self.register_buffer("centroids", self.generateCentroids(bits, numClasses))
         self._lambda = _lambda
+
+    def beforeRun(self, *_, trainSet, logger, **__) -> Any:
+        logger.debug("Call `CSQ.beforeRun()`.")
+        if not hasattr(trainSet, "NumClass"):
+            raise AttributeError("You provide a dataset without attribtue `NumClass`.")
+        if trainSet.NumClass != len(self.centroids):
+            raise ValueError("The dataset's `NumClass` not equals to centriods' number.")
+
 
     def meanOfCode(self, y: torch.Tensor):
         # [n, bits]
@@ -64,7 +74,7 @@ class CSQ(nn.Module):
         return H > 0
 
 @CriterionRegistry.register
-class CSQ_D(CSQ):
+class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
     # NOTE: A very interesting thing:
     #       Even if we don't train the mapNet
     #       The Hashing performance is still very high.
@@ -139,7 +149,6 @@ class CSQ_D(CSQ):
         self.register_buffer("multiplier", (2 ** torch.arange(8)).long())
         self.register_buffer("permIdx", torch.randperm(bits))
         self.m = bits // 8
-        self._ticker = 0
 
     @property
     def BitFlip(self) -> int:
@@ -156,10 +165,13 @@ class CSQ_D(CSQ):
         # reset params
         # self.mapper.reset()
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor):
-        self._ticker += 1
-        if self._ticker % int(self.m * 16) == 0:
+    def epochFinish(self, step: int, epoch: int, *_, **__):
+        logger.debug("Call `CSQ_D.epochFinish()`.")
+        if epoch % 4 == 0:
+            logger.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor):
         # X are permuted on last dim according to permIdx
         x = x[:, self.permIdx]
 
