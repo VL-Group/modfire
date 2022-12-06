@@ -81,6 +81,7 @@ class COCO(Dataset):
 
             for f in chunkedFiles:
                 os.remove(f)
+            return True
 
         os.makedirs(root, exist_ok=True)
 
@@ -92,7 +93,7 @@ class COCO(Dataset):
 
 
         logger.info("Download files into `%s`.", root)
-        logger.warning("To prepare COCO, you need at least 40 GiB disk space for downloading and extracting.")
+        logger.warning("To prepare `%s`, you need at least 6 GiB disk space for downloading and extracting.", COCO.__name__)
         for url in _FILE_URL:
             fileName = url.split("/")[-1]
             filePath = os.path.join(root, fileName)
@@ -106,7 +107,7 @@ class COCO(Dataset):
                 else:
                     logger.info("Removing corrupted `%s`.", filePath)
                     os.remove(filePath)
-            torch.hub.download_url_to_file(url, root, )
+            torch.hub.download_url_to_file(url, root, hashPrefix)
 
 
         logger.info("Verifying...")

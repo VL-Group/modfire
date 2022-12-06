@@ -22,17 +22,17 @@ from modfire.utils import concatOfFiles, hashOfFile, hashOfStream, getRichProgre
 
 _ASSETS_PATH = Consts.AssetsPath.joinpath("imagenet")
 _FILE_URL = [
-    "https://github.com/VL-Group/modfire/releases/download/imagenet/ImageNet100_cd909bce.tar.gz.0",
-    "https://github.com/VL-Group/modfire/releases/download/imagenet/ImageNet100_873c354e.tar.gz.1",
-    "https://github.com/VL-Group/modfire/releases/download/imagenet/ImageNet100_529bd7dd.tar.gz.2"
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_29ab4c9d.tar.gz.0",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_4daa42d2.tar.gz.1",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_b27acacf.tar.gz.2",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_bcd5f0b0.tar.gz.3",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_97feda8e.tar.gz.4",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_f617cd93.tar.gz.6",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_e96bd3ee.tar.gz.7",
+    "https://github.com/VL-Group/modfire/releases/download/ImageNet/ImageNet_cfbe728c.tar.gz.5",
 ]
-_GLOBAL_HASH = ""
-_FILE_COUNT = 0
-ALL_CONCEPTS = ["airport", "animal", "beach", "bear", "birds", "boats", "book", "bridge", "buildings", "cars", "castle", "cat", "cityscape", "clouds", "computer", "coral", "cow", "dancing", "dog", "earthquake", "elk", "fire", "fish", "flags", "flowers", "food", "fox", "frost", "garden", "glacier", "grass", "harbor", "horses", "house", "lake", "leaf", "map", "military", "moon", "mountain", "nighttime", "ocean", "person", "plane", "plants", "police", "protest", "railroad", "rainbow", "reflection", "road", "rocks", "running", "sand", "sign", "sky", "snow", "soccer", "sports", "statue", "street", "sun", "sunset", "surf", "swimmers", "tattoo", "temple", "tiger", "tower", "town", "toy", "train", "tree", "valley", "vehicle", "water", "waterfall", "wedding", "whales", "window", "zebra"]
-
-
-if len(ALL_CONCEPTS) != 100:
-    raise ValueError("NUS-WIDE concept list corrupted.")
+_GLOBAL_HASH = "9514798e"
+_FILE_COUNT = 127100 + 5000
 
 
 def loadImg(inputs):
@@ -53,20 +53,20 @@ class ImageNet100(Dataset):
             allLines = filter(None, (line.strip() for line in fp.readlines()))
         allImages, allLabels = list(), list()
         for line in allLines:
-            img, labels = _parse(line)
+            img, label = _parse(line)
             allImages.append(os.path.join(self.root, img))
-            allLabels.append(list(map(int, labels.split())))
+            allLabels.append(int(label))
         allLabels = torch.from_numpy(np.array(allLabels))
-        if len(allLabels.shape) != 2 or allLabels.shape[-1] != len(ALL_CONCEPTS):
-            raise ValueError(f"File corrupted. labels have shape: {allLabels.shape}, while expected concepts length is {len(ALL_CONCEPTS)}.")
-        return allImages, allLabels.float()
+        if len(allLabels.shape) != 1 or len(torch.unique(allLabels)) != 100:
+            raise ValueError(f"File corrupted. labels have shape: {allLabels.shape} and unique label count: {len(torch.unique(allLabels))} (expect 100).")
+        return allImages, torch.nn.functional.one_hot(allLabels, num_classes=100).float()
 
     def check(self) -> bool:
-        return os.path.exists(self.root) and os.path.isdir(self.root) and len(os.listdir(self.root)) == _FILE_COUNT
+        return os.path.exists(self.root) and os.path.isdir(self.root) and len(glob.glob(os.path.join(self.root, "**/*.JPEG"), recursive=True)) == _FILE_COUNT
 
     @staticmethod
     def prepare(root: StrPath, logger = logging) -> bool:
-        if os.path.exists(root) and os.path.isdir(root) and len(os.listdir(root)) == _FILE_COUNT:
+        if os.path.exists(root) and os.path.isdir(root) and len(glob.glob(os.path.join(root, "**/*.JPEG"), recursive=True)) == _FILE_COUNT:
             logger.info("File already prepared, exit.")
 
             # clean up
@@ -75,6 +75,7 @@ class ImageNet100(Dataset):
 
             for f in chunkedFiles:
                 os.remove(f)
+            return True
 
         os.makedirs(root, exist_ok=True)
 
@@ -86,7 +87,7 @@ class ImageNet100(Dataset):
 
 
         logger.info("Download files into `%s`.", root)
-        logger.warning("To prepare NUS-WIDE, you need at least 12 GiB disk space for downloading and extracting.")
+        logger.warning("To prepare `%s`, you need at least 6 GiB disk space for downloading and extracting.", ImageNet100.__name__)
         for url in _FILE_URL:
             fileName = url.split("/")[-1]
             filePath = os.path.join(root, fileName)
@@ -100,10 +101,7 @@ class ImageNet100(Dataset):
                 else:
                     logger.info("Removing corrupted `%s`.", filePath)
                     os.remove(filePath)
-            torch.hub.download_url_to_file(url, root, )
-
-
-        logger.info("Verifying...")
+            torch.hub.download_url_to_file(url, root, hashPrefix)
 
         chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*"))
         if len(chunkedFiles) != len(_FILE_URL):
@@ -125,13 +123,13 @@ class ImageNet100(Dataset):
 
         # clean up
 
-        chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*")) + glob.glob(os.path.join(root, "tmp*"))
+        # chunkedFiles = glob.glob(os.path.join(root, "*.tar.gz.*")) + glob.glob(os.path.join(root, "tmp*"))
 
-        for f in chunkedFiles:
-            os.remove(f)
+        # for f in chunkedFiles:
+        #     os.remove(f)
 
         with getRichProgress() as p:
-            src = glob.glob(os.path.join(extratedPath, "*.jpg"))
+            src = glob.glob(os.path.join(extratedPath, "*"))
             task = p.add_task("[ Clean up ]", total=len(src), progress="0.00%", suffix="")
             for i, img in enumerate(src):
                 shutil.move(img, root)
@@ -139,8 +137,10 @@ class ImageNet100(Dataset):
             p.remove_task(task)
         shutil.rmtree(extratedPath)
 
-        if len(os.listdir(root)) != _FILE_COUNT:
-            raise ValueError(f"The total count of extracted images is incorrect. Expected: {_FILE_COUNT}. Got: {len(os.listdir(root))}.")
+        allImagesCount = len(glob.glob(os.path.join(root, "**/*.JPEG"), recursive=True))
+
+        if allImagesCount != _FILE_COUNT:
+            raise ValueError(f"The total count of extracted images is incorrect. Expected: {_FILE_COUNT}. Got: {allImagesCount}.")
         return True
 
     @property
@@ -166,7 +166,7 @@ class ImageNet100(Dataset):
                 self._labels = self._labels.to(originalDevice)
             @property
             def NumClass(self) -> int:
-                return len(ALL_CONCEPTS)
+                return 100
 
         return _dataset()
 
@@ -229,4 +229,12 @@ class ImageNet100(Dataset):
 
     @property
     def Semantics(self) -> List[str]:
-        return ALL_CONCEPTS
+        import json
+        import warnings
+        warnings.warn("We use the simplified labels from `https://github.com/anishathalye/imagenet-simple-labels`. Labels are different from the original one.")
+        with open(os.path.join(_ASSETS_PATH, "labels.json"), "r") as fp:
+            # a 1000 length list
+            allLabels = json.load(fp)
+        with open(os.path.join(_ASSETS_PATH, "imagenet100_class_map.txt"), "r") as fp:
+            mapper = map(int, filter(None, (line.strip() for line in fp.readlines())))
+        return [allLabels[i] for i in mapper]

@@ -22,8 +22,8 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
         self.register_buffer("centroids", self.generateCentroids(bits, numClasses))
         self._lambda = _lambda
 
-    def beforeRun(self, *_, trainSet, logger, **__) -> Any:
-        logger.debug("Call `CSQ.beforeRun()`.")
+    def beforeRun(self, *_, trainSet, saver, **__) -> Any:
+        saver.debug("Call `CSQ.beforeRun()`.")
         if not hasattr(trainSet, "NumClass"):
             raise AttributeError("You provide a dataset without attribtue `NumClass`.")
         if trainSet.NumClass != len(self.centroids):
@@ -124,12 +124,6 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             self._net = nn.ModuleList(ffnNet() for _ in range(bits // 8))
             self._bitFlip = CSQ_D._randomBitFlip(bits, int(bits // 32) ** 2)
 
-        def reset(self):
-            for ffnNet in self._net:
-                for net in ffnNet:
-                    if hasattr(net, "reset_parameters"):
-                        net.reset_parameters()
-
         def forward(self, x, flip):
             if flip:
                 x = self._bitFlip(x)
@@ -165,10 +159,10 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
         # reset params
         # self.mapper.reset()
 
-    def epochFinish(self, step: int, epoch: int, *_, **__):
-        logger.debug("Call `CSQ_D.epochFinish()`.")
-        if epoch % 4 == 0:
-            logger.debug("Reset permutation index in `CSQ_D`.")
+    def epochFinish(self, step: int, epoch: int, *_, saver, **__):
+        saver.debug("Call `CSQ_D.epochFinish()`.")
+        if epoch:
+            saver.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):

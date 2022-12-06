@@ -13,7 +13,7 @@ from PIL import Image
 
 torch.hub.download_url_to_file("http://images.cocodataset.org/zips/train2017.zip", "./train2017.zip")
 torch.hub.download_url_to_file("http://images.cocodataset.org/zips/val2017.zip", "./val2017.zip")
-torch.hub.download_url_to_file("http://images.cocodataset.org/zips/annotations_trainval2017.zip", "./")
+torch.hub.download_url_to_file("http://images.cocodataset.org/zips/annotations_trainval2017.zip", "./annotations_trainval2017")
 
 
 
