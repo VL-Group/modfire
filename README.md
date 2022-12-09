@@ -38,30 +38,18 @@ ModFire is a training, testing, deploying toolkit for modern fast image retrieva
 
 
 <!--ts-->
+* [Motivation](#motivation)
 * [Quick Start](#quick-start)
-   * [Requirements](#requirements)
-   * [Conda (Recommended)](#conda-recommended)
-   * [Docker](#docker)
-   * [Install Manually (for dev)](#install-manually-for-dev)
-   * [(<em><strong>Optional</strong></em>) Install NVIDIA/Apex](#optional-install-nvidiaapex)
-* [Reference Models](#reference-models)
-* [Train a New Model](#train-a-new-model)
-   * [Requirements](#requirements-1)
-   * [Configs](#configs)
-   * [Prepare a Dataset](#prepare-a-dataset)
-   * [Training](#training)
-   * [Test](#test)
-* [Implement MCQ by yourself](#implement-mcq-by-yourself)
+* [Usage](#usage)
 * [Contribute to this Repository](#contribute-to-this-repository)
 * [To-do List](#to-do-list)
-* [Detailed framework](#detailed-framework)
 * [References and License](#references-and-license)
    * [References](#references)
    * [Citation](#citation)
    * [Copyright](#copyright)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: runner, at: Tue Jul 12 09:18:36 UTC 2022 -->
+<!-- Added by: runner, at: Fri Dec  9 12:20:07 UTC 2022 -->
 
 <!--te-->
 
