@@ -127,22 +127,20 @@ class PalTrainer(Restorable):
             for targets, images in trainLoader:
                 if self._step % batchesOneEpoch == 0:
                     self._epochStart(epochStartHook, **datasets)
-                    self._model.train()
 
                 # Main loop
-                self._stepStart(stepStartHook)
+                self._stepStart(stepStartHook, inputs=(targets, images))
                 self._optimizer.zero_grad()
                 z = self._model(images.to(self.rank, non_blocking=True))
                 loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True))
                 loss.backward()
                 self._optimizer.step()
-                self._stepFinish(stepFinishHook, loss=loss, stats=stats)
+                self._stepFinish(stepFinishHook, loss=loss, stats=stats, outputs=(z))
                 if self._step % batchesOneEpoch == 0:
                     try:
                         self._epochFinish(epochFinishHook, **datasets)
                     except StopIteration:
                         break
-                    self._model.train()
                 if self._step > totalBatches:
                     break
 
@@ -438,7 +436,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         self.saver.debug("Start validation at epoch %4d.", self._epoch)
 
-        results, summary = self.validator.validate(self._model.module.eval(), database, querySet, self.progress)
+        results, summary = self.validator.validate(self._model.module, database, querySet, self.progress)
 
         for metricModule in metrics.__all__:
             if metricModule != "Visualization":
@@ -462,6 +460,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
                 self.earlyStop()
 
         self.saver.debug("End validation at epoch %4d.", self._epoch)
+        self._model.train()
 
     def earlyStop(self):
         self.earlyStopFlag.data.copy_(torch.tensor([True]))

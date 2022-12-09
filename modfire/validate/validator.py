@@ -34,4 +34,5 @@ class Validator:
                 # remove outliers
                 self._meter(truePositives, numAllTrues)
 
-            return self._meter.results(), self._meter.summary()
+        model.train()
+        return self._meter.results(), self._meter.summary()

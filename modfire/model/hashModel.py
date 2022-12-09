@@ -12,9 +12,9 @@ _PRETRAINED_MODEL_CLASSES = 1000
 
 
 class Backbone(nn.Module):
-    def __init__(self, bits: int, backbone: str = "resnet50"):
+    def __init__(self, bits: int, backbone: str = "resnet50", pretrained: bool = True):
         super().__init__()
-        self._backbone = get_model(backbone, weights=get_model_weights(backbone).DEFAULT)
+        self._backbone = get_model(backbone, weights=get_model_weights(backbone).DEFAULT if pretrained else None)
         # modifying backbone
         lastLinears = findLastLinear(self._backbone, _PRETRAINED_MODEL_CLASSES)
         replaceModule(self._backbone, [(name, nn.Linear(linear.in_features, bits)) for name, linear in lastLinears])

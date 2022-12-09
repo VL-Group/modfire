@@ -15,6 +15,9 @@ logger = logging.getLogger(Consts.Name)
 
 @CriterionRegistry.register
 class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
+    """
+        Li Yuan, Tao Wang, Xiaopeng Zhang, Francis E. H. Tay, Zequn Jie, Wei Liu, Jiashi Feng: Central Similarity Quantization for Efficient Image and Video Retrieval. CVPR 2020: 3080-3089.
+    """
     centroids: torch.Tensor
     def __init__(self, bits: int, numClasses: int, _lambda: float = 1e-4) -> None:
         super().__init__()
@@ -34,7 +37,7 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
         # [n, bits]
         return ((y @ self.centroids) > (y.sum(-1, keepdim=True) / 2)).float()
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, *_):
         centerLoss = F.binary_cross_entropy_with_logits(x, self.meanOfCode(y))
         quantizationError = F.mse_loss(x.tanh(), x.sign())
         return centerLoss + quantizationError, { "centerLoss": centerLoss, "qError": quantizationError }
@@ -75,6 +78,9 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
 
 @CriterionRegistry.register
 class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
+    """
+        Xiaosu Zhu, Jingkuan Song, Yu Lei, Lianli Gao, Heng Tao Shen: A Lower Bound of Hash Codes' Performance. NeurIPS 2022.
+    """
     # NOTE: A very interesting thing:
     #       Even if we don't train the mapNet
     #       The Hashing performance is still very high.
@@ -165,7 +171,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             saver.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, *_):
         # X are permuted on last dim according to permIdx
         x = x[:, self.permIdx]
 

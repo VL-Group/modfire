@@ -23,9 +23,9 @@ class IntraNormalization(nn.Module):
         return F.normalize(x.reshape(*x.shape[-1], self._m, -1)).reshape(x.shape)
 
 class Backbone(nn.Module):
-    def __init__(self, m: int, d: int, intraNormalization: bool = True, backbone: str = "resnet50"):
+    def __init__(self, m: int, d: int, intraNormalization: bool = True, backbone: str = "resnet50", pretrained: bool = True):
         super().__init__()
-        self._backbone = get_model(backbone, weights=get_model_weights(backbone).DEFAULT)
+        self._backbone = get_model(backbone, weights=get_model_weights(backbone).DEFAULT if pretrained else None)
         # modifying backbone
         lastLinears = findLastLinear(self._backbone, _PRETRAINED_MODEL_CLASSES)
         replaceModule(self._backbone, [(name, nn.Linear(linear.in_features, d)) for name, linear in lastLinears])
