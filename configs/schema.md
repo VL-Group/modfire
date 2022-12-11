@@ -2,12 +2,16 @@
 
 - [1. ![Required](https://img.shields.io/badge/Required-blue) Property `model`](#model)
   - [1.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_key)
-  - [1.2. ![Required](https://img.shields.io/badge/Required-blue) Property `params`](#model_params)
+  - [1.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_params)
     - [1.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_params_additionalProperties)
 - [2. ![Required](https://img.shields.io/badge/Required-blue) Property `summary`](#summary)
 - [3. ![Required](https://img.shields.io/badge/Required-blue) Property `train`](#train)
   - [3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `criterion`](#train_criterion)
   - [3.2. ![Required](https://img.shields.io/badge/Required-blue) Property `database`](#train_database)
+    - [3.2.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#train_database_key)
+    - [3.2.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#train_database_params)
+      - [3.2.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#train_database_params_additionalProperties)
+    - [3.2.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `pipeline`](#train_database_pipeline)
   - [3.3. ![Required](https://img.shields.io/badge/Required-blue) Property `earlyStop`](#train_earlyStop)
   - [3.4. ![Required](https://img.shields.io/badge/Required-blue) Property `epoch`](#train_epoch)
   - [3.5. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `externalLib`](#train_externalLib)
@@ -52,19 +56,20 @@
 | Property                   | Pattern | Type   | Deprecated | Definition | Title/Description |
 | -------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
 | + [key](#model_key )       | No      | string | No         | -          | key               |
-| + [params](#model_params ) | No      | object | No         | -          | params            |
+| - [params](#model_params ) | No      | object | No         | -          | params            |
 
 ### <a name="model_key"></a>1.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
 
 **Title:** key
 
-|          |          |
-| -------- | -------- |
-| **Type** | `string` |
+|             |          |
+| ----------- | -------- |
+| **Type**    | `string` |
+| **Default** | `null`   |
 
 **Description:** A unique key used to retrieve in registry. For example, given `Lamb` for optimizers, it will check `OptimRegistry` and find the optimizer `apex.optim.FusedLAMB`.
 
-### <a name="model_params"></a>1.2. ![Required](https://img.shields.io/badge/Required-blue) Property `params`
+### <a name="model_params"></a>1.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
 
 **Title:** params
 
@@ -72,6 +77,7 @@
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                                                                                  |
 | **Additional properties** | [![Should-conform](https://img.shields.io/badge/Should-conform-blue)](#model_params_additionalProperties "Each additional property must conform to the following schema") |
+| **Default**               | `{}`                                                                                                                                                                      |
 
 **Description:** Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.
 
@@ -106,23 +112,23 @@
 
 **Description:** Training configs.
 
-| Property                             | Pattern | Type                    | Deprecated | Definition                 | Title/Description                                                                                                                                                                                   |
-| ------------------------------------ | ------- | ----------------------- | ---------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| + [criterion](#train_criterion )     | No      | object                  | No         | Same as [model](#model )   | Loss function used for training.                                                                                                                                                                    |
-| + [database](#train_database )       | No      | object                  | No         | Same as [model](#model )   | A spec to load images per line for evalution database.                                                                                                                                              |
-| + [earlyStop](#train_earlyStop )     | No      | integer                 | No         | -                          | earlyStop                                                                                                                                                                                           |
-| + [epoch](#train_epoch )             | No      | integer                 | No         | -                          | epoch                                                                                                                                                                                               |
-| - [externalLib](#train_externalLib ) | No      | array of string or null | No         | -                          | externalLib                                                                                                                                                                                         |
-| + [gpu](#train_gpu )                 | No      | object                  | No         | In #/definitions/GPUSchema | GPU configs for training.                                                                                                                                                                           |
-| - [hooks](#train_hooks )             | No      | array of object or null | No         | -                          | hooks                                                                                                                                                                                               |
-| + [numReturns](#train_numReturns )   | No      | integer                 | No         | -                          | numReturns                                                                                                                                                                                          |
-| + [optim](#train_optim )             | No      | object                  | No         | Same as [model](#model )   | Optimizer used for training. As for current we have \`Adam\` and \`Lamb\`.                                                                                                                          |
-| + [querySet](#train_querySet )       | No      | object                  | No         | Same as [model](#model )   | A spec to load images per line for evalution query.                                                                                                                                                 |
-| + [saveDir](#train_saveDir )         | No      | string                  | No         | -                          | saveDir                                                                                                                                                                                             |
-| + [schdr](#train_schdr )             | No      | object                  | No         | Same as [model](#model )   | Learning rate scheduler used for training. As for current we have \`ReduceLROnPlateau\`, \`Exponential\`, \`MultiStep\`, \`OneCycle\` and all schedulers defined in \`modfire.train.lrSchedulers\`. |
-| + [trainSet](#train_trainSet )       | No      | object                  | No         | Same as [model](#model )   | A spec to load images per line for training.                                                                                                                                                        |
-| - [trainer](#train_trainer )         | No      | string                  | No         | -                          | trainer                                                                                                                                                                                             |
-| + [valFreq](#train_valFreq )         | No      | integer                 | No         | -                          | valFreq                                                                                                                                                                                             |
+| Property                             | Pattern | Type                    | Deprecated | Definition                           | Title/Description                                                                                                                                                                                   |
+| ------------------------------------ | ------- | ----------------------- | ---------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| + [criterion](#train_criterion )     | No      | object                  | No         | Same as [model](#model )             | Loss function used for training.                                                                                                                                                                    |
+| + [database](#train_database )       | No      | object                  | No         | In #/definitions/DatasetSchema       | A spec to load images per line for evalution database.                                                                                                                                              |
+| + [earlyStop](#train_earlyStop )     | No      | integer                 | No         | -                                    | earlyStop                                                                                                                                                                                           |
+| + [epoch](#train_epoch )             | No      | integer                 | No         | -                                    | epoch                                                                                                                                                                                               |
+| - [externalLib](#train_externalLib ) | No      | array of string or null | No         | -                                    | externalLib                                                                                                                                                                                         |
+| + [gpu](#train_gpu )                 | No      | object                  | No         | In #/definitions/GPUSchema           | GPU configs for training.                                                                                                                                                                           |
+| - [hooks](#train_hooks )             | No      | array of object or null | No         | -                                    | hooks                                                                                                                                                                                               |
+| + [numReturns](#train_numReturns )   | No      | integer                 | No         | -                                    | numReturns                                                                                                                                                                                          |
+| + [optim](#train_optim )             | No      | object                  | No         | Same as [model](#model )             | Optimizer used for training. As for current we have \`Adam\` and \`Lamb\`.                                                                                                                          |
+| + [querySet](#train_querySet )       | No      | object                  | No         | Same as [database](#train_database ) | A spec to load images per line for evalution query.                                                                                                                                                 |
+| + [saveDir](#train_saveDir )         | No      | string                  | No         | -                                    | saveDir                                                                                                                                                                                             |
+| + [schdr](#train_schdr )             | No      | object                  | No         | Same as [model](#model )             | Learning rate scheduler used for training. As for current we have \`ReduceLROnPlateau\`, \`Exponential\`, \`MultiStep\`, \`OneCycle\` and all schedulers defined in \`modfire.train.lrSchedulers\`. |
+| + [trainSet](#train_trainSet )       | No      | object                  | No         | Same as [database](#train_database ) | A spec to load images per line for training.                                                                                                                                                        |
+| - [trainer](#train_trainer )         | No      | string                  | No         | -                                    | trainer                                                                                                                                                                                             |
+| + [valFreq](#train_valFreq )         | No      | integer                 | No         | -                                    | valFreq                                                                                                                                                                                             |
 
 ### <a name="train_criterion"></a>3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `criterion`
 
@@ -140,9 +146,58 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Defined in**            | #/definitions/DatasetSchema                                                                              |
 
 **Description:** A spec to load images per line for evalution database.
+
+| Property                                | Pattern | Type   | Deprecated | Definition               | Title/Description                |
+| --------------------------------------- | ------- | ------ | ---------- | ------------------------ | -------------------------------- |
+| + [key](#train_database_key )           | No      | string | No         | -                        | key                              |
+| - [params](#train_database_params )     | No      | object | No         | -                        | params                           |
+| - [pipeline](#train_database_pipeline ) | No      | object | No         | Same as [model](#model ) | A spec of data loading pipeline. |
+
+#### <a name="train_database_key"></a>3.2.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
+
+**Title:** key
+
+|          |          |
+| -------- | -------- |
+| **Type** | `string` |
+
+**Description:** A unique key used to retrieve in DatasetRegistry.
+
+#### <a name="train_database_params"></a>3.2.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
+
+**Title:** params
+
+|                           |                                                                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Type**                  | `object`                                                                                                                                                                           |
+| **Additional properties** | [![Should-conform](https://img.shields.io/badge/Should-conform-blue)](#train_database_params_additionalProperties "Each additional property must conform to the following schema") |
+| **Default**               | `{}`                                                                                                                                                                               |
+
+**Description:** Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.
+
+| Property                                                               | Pattern | Type   | Deprecated | Definition | Title/Description |
+| ---------------------------------------------------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
+| - [additionalProperties](#train_database_params_additionalProperties ) | No      | object | No         | -          | -                 |
+
+##### <a name="train_database_params_additionalProperties"></a>3.2.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
+
+|                           |                                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Type**                  | `object`                                                                                                                          |
+| **Additional properties** | [![Any type: allowed](https://img.shields.io/badge/Any%20type-allowed-green)](# "Additional Properties of any type are allowed.") |
+
+#### <a name="train_database_pipeline"></a>3.2.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `pipeline`
+
+|                           |                                                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Type**                  | `object`                                                                                                 |
+| **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
+| **Same definition as**    | [model](#model)                                                                                          |
+
+**Description:** A spec of data loading pipeline.
 
 ### <a name="train_earlyStop"></a>3.3. ![Required](https://img.shields.io/badge/Required-blue) Property `earlyStop`
 
@@ -314,7 +369,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [database](#train_database)                                                                              |
 
 **Description:** A spec to load images per line for evalution query.
 
@@ -344,7 +399,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [database](#train_database)                                                                              |
 
 **Description:** A spec to load images per line for training.
 
