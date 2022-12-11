@@ -65,6 +65,9 @@ class TrainSplit(SplitBase, abc.ABC):
         return -1
 
 class QuerySplit(SplitBase, abc.ABC):
+    @property
+    def DataPipe(self) -> IterDataPipe:
+        return self._pipeline(IterableWrapper(self._samples).enumerate(), self._loadImg, self._batchSize)
     def info(self, indices) -> Any:
         """Return queries' info for Database.judge()
         Args:
@@ -78,6 +81,9 @@ class QuerySplit(SplitBase, abc.ABC):
 
 
 class Database(SplitBase, abc.ABC):
+    @property
+    def DataPipe(self) -> IterDataPipe:
+        return self._pipeline(IterableWrapper(self._samples).enumerate(), self._loadImg, self._batchSize)
     def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return true positives based on query info.
 
