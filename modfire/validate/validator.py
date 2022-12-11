@@ -20,6 +20,8 @@ class Validator:
 
     @torch.no_grad()
     def validate(self, model: BaseWrapper, database: Database, queries: QuerySplit, progress: Progress):
+        if not isinstance(database, Database) or not isinstance(queries, QuerySplit):
+            raise ValueError("Passing argument database / queries is not an instance of Database / QuerySplit.")
         device = next(model.parameters()).device
         model.eval()
         self._meter.reset()

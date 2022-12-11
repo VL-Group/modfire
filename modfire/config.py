@@ -9,12 +9,23 @@ from marshmallow import Schema, fields, post_load, RAISE
 class GeneralSchema(Schema):
     class Meta:
         unknown = RAISE
-    key = fields.Str(required=True, description="A unique key used to retrieve in registry. For example, given `Lamb` for optimizers, it will check `OptimRegistry` and find the optimizer `apex.optim.FusedLAMB`.")
-    params = fields.Dict(required=True, description="Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.")
+    key = fields.Str(required=True, default=None, description="A unique key used to retrieve in registry. For example, given `Lamb` for optimizers, it will check `OptimRegistry` and find the optimizer `apex.optim.FusedLAMB`.")
+    params = fields.Dict(required=False, default={}, description="Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.")
 
     @post_load
     def _(self, data, **kwargs):
         return General(**data)
+
+class DatasetSchema(Schema):
+    class Meta:
+        unknown = RAISE
+    key = fields.Str(required=True, description="A unique key used to retrieve in DatasetRegistry.")
+    params = fields.Dict(required=False, default={}, description="Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.")
+    pipeline = fields.Nested(GeneralSchema(), required=False, description="A spec of data loading pipeline.")
+
+    @post_load
+    def _(self, data, **kwargs):
+        return Dataset(**data)
 
 # Ununsed, unless you want ddp training
 class GPUSchema(Schema):
@@ -35,9 +46,9 @@ class TrainSchema(Schema):
     valFreq = fields.Int(required=True, description="Run validation after every `valFreq` epochs.", exclusiveMinimum=0)
     earlyStop = fields.Int(required=True, description="Early stop after how many evaluations.", exclusiveMinimum=0)
     numReturns = fields.Int(required=True, description="Rank list return number of samples.", exclusiveMinimum=0)
-    trainSet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for training.")
-    database = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution database.")
-    querySet = fields.Nested(GeneralSchema(), required=True, description="A spec to load images per line for evalution query.")
+    trainSet = fields.Nested(DatasetSchema(), required=True, description="A spec to load images per line for training.")
+    database = fields.Nested(DatasetSchema(), required=True, description="A spec to load images per line for evalution database.")
+    querySet = fields.Nested(DatasetSchema(), required=True, description="A spec to load images per line for evalution query.")
     trainer = fields.Str(required=False, default="BaseTrainer", description="A key to retrieve from TrainerBuilder, default is `BaseTrainer`.")
     saveDir = fields.Str(required=True, description="A dir path to save model checkpoints, TensorBoard messages and logs.")
     criterion = fields.Nested(GeneralSchema(), required=True, description="Loss function used for training.")
@@ -89,6 +100,24 @@ class General:
         return self.params
 
 @dataclass
+class Dataset:
+    key: str
+    params: Dict[str, Any]
+    pipeline: General = General("default", {})
+
+    @property
+    def Key(self) -> str:
+        return self.key
+
+    @property
+    def Params(self) -> Dict[str, Any]:
+        return self.params
+
+    @property
+    def Pipeline(self) -> General:
+        return self.pipeline
+
+@dataclass
 class GPU:
     gpus: int
     vRam: int
@@ -112,9 +141,9 @@ class Train:
     valFreq: int
     trainer: str
     earlyStop: int
-    trainSet: General
-    database: General
-    querySet: General
+    trainSet: Dataset
+    database: Dataset
+    querySet: Dataset
     saveDir: str
     optim: General
     schdr: General
@@ -145,15 +174,15 @@ class Train:
         return self.numReturns
 
     @property
-    def TrainSet(self) -> General:
+    def TrainSet(self) -> Dataset:
         return self.trainSet
 
     @property
-    def Database(self) -> General:
+    def Database(self) -> Dataset:
         return self.database
 
     @property
-    def QuerySet(self) -> General:
+    def QuerySet(self) -> Dataset:
         return self.querySet
 
     @property

@@ -1,21 +1,16 @@
 
-from typing import Any, Tuple, List
+from typing import List
 import os
 import logging
 import tarfile
 import glob
 import shutil
-from contextlib import contextmanager
 
 import torch
 import numpy as np
-from torch.utils.data import IterDataPipe
-from torch.utils.data.datapipes.iter import IterableWrapper
-from torchvision.datasets import folder
 from vlutils.saver import StrPath
 
 from ..dataset import Database, Dataset, TrainSplit, QuerySplit, DatasetRegistry
-from ..utils import defaultEvalDataPipe, defaultTrainingDataPipe, toDevice
 from modfire import Consts
 from modfire.utils import concatOfFiles, hashOfFile, hashOfStream, getRichProgress
 
@@ -35,15 +30,10 @@ if len(ALL_CONCEPTS) != 81:
     raise ValueError("NUS-WIDE concept list corrupted.")
 
 
-def loadImg(inputs):
-    i, img = inputs
-    return i, folder.default_loader(img)
-
-
 @DatasetRegistry.register
 class NUS_WIDE(Dataset):
-    def __init__(self, root: StrPath, mode: str, batchSize: int):
-        super().__init__(root, mode, batchSize)
+    def __init__(self, root: StrPath, mode: str, batchSize: int, pipeline):
+        super().__init__(root, mode, batchSize, pipeline)
         self._allImages, self._allLabels = self.readImageList(os.path.join(_ASSETS_PATH, self.mode.TxtConst))
 
     def readImageList(self, path: StrPath):
@@ -146,87 +136,20 @@ class NUS_WIDE(Dataset):
 
     @property
     def TrainSplit(self) -> TrainSplit:
-        _ = super().TrainSplit
         class _dataset(TrainSplit):
-            _images = self._allImages
-            _labels = self._allLabels
-            _batchSize = self.batchSize
-            @property
-            def DataPipe(self) -> IterDataPipe:
-                imgs = IterableWrapper(self._images)
-                labels = IterableWrapper(self._labels)
-                return defaultTrainingDataPipe(labels.zip(imgs), loadImg, self._batchSize)
-            def __len__(self):
-                return len(self._images)
-
-            @contextmanager
-            def device(self, device):
-                originalDevice = self._labels.device
-                self._labels = self._labels.to(device)
-                yield
-                self._labels = self._labels.to(originalDevice)
             @property
             def NumClass(self) -> int:
                 return len(ALL_CONCEPTS)
 
-        return _dataset()
+        return _dataset(self._allImages, self._allLabels, self.batchSize, self._loadImg, self.pipeline)
 
     @property
     def QuerySplit(self) -> QuerySplit:
-        _ = super().QuerySplit
-        class _dataset(QuerySplit):
-            _images = self._allImages
-            _labels = self._allLabels
-            _batchSize = self.batchSize
-            @property
-            def DataPipe(self) -> IterDataPipe:
-                imgs = IterableWrapper(self._images)
-                return defaultEvalDataPipe(imgs.enumerate(), loadImg, self._batchSize)
-            def __len__(self):
-                return len(self._images)
-            def info(self, indices) -> torch.Tensor:
-                return self._labels[indices]
-
-            @contextmanager
-            def device(self, device):
-                originalDevice = self._labels.device
-                self._labels = self._labels.to(device)
-                yield
-                self._labels = self._labels.to(originalDevice)
-
-        return _dataset()
+        return QuerySplit(self._allImages, self._allLabels, self.batchSize, self._loadImg, self.pipeline)
 
     @property
     def Database(self) -> Database:
-        _ = super().Database
-        class _dataset(Database):
-            _images = self._allImages
-            _labels = self._allLabels
-            _batchSize = self.batchSize
-            @property
-            def DataPipe(self) -> IterDataPipe:
-                imgs = IterableWrapper(self._images)
-                return defaultEvalDataPipe(imgs.enumerate(), loadImg, self._batchSize)
-            def __len__(self):
-                return len(self._images)
-            def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-                # NOTE: Here, queryInfo is label of queries.
-                # [Nq, k, nClass]
-                databaseLabels = self._labels[rankList]
-                # [Nq, k]
-                matching = torch.einsum("qc,qkc->qk", queryInfo, databaseLabels) > 0
-                # [Nq, Nb] -> [Nq]
-                numAllTrues = ((queryInfo @ self._labels.T) > 0).sum(-1)
-                return matching, numAllTrues
-
-            @contextmanager
-            def device(self, device):
-                originalDevice = self._labels.device
-                self._labels = self._labels.to(device)
-                yield
-                self._labels = self._labels.to(originalDevice)
-
-        return _dataset()
+        return Database(self._allImages, self._allLabels, self.batchSize, self._loadImg, self.pipeline)
 
     @property
     def Semantics(self) -> List[str]:

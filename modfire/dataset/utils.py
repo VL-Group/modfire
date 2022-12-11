@@ -1,9 +1,11 @@
 from typing import Iterator, Callable
+import functools
 
 import torch
 from torch.utils.data import IterDataPipe
 import torch.nn.functional as F
 import torchvision.transforms as T
+from vlutils.base import Registry
 
 
 _IMG_MEAN = [0.485, 0.456, 0.406]
@@ -61,11 +63,45 @@ def mappedTrainTransform(inputs):
 def mappedEvalTransform(inputs):
     return inputs[0], EvalTransform(inputs[1])
 
-def defaultTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
+
+
+class DataPipeRegistry(Registry[Callable[..., IterDataPipe]]):
+    pass
+
+
+@DataPipeRegistry.register
+def DefaultEvalDataPipe(*_, **__):
+    return _defaultEvalDataPipe
+
+
+@DataPipeRegistry.register
+def DefaultTrainingDataPipe(*_, **__):
+    return _defaultTrainingDataPipe
+
+
+@DataPipeRegistry.register
+def SelfSupervisedTrainingDataPipe(*_, nViews: int, **__):
+    return functools.partial(_selfSupervisedTrainingDataPipe, nViews=nViews)
+
+
+
+
+
+
+
+
+def _defaultEvalDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
+    return source.sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedEvalTransform).prefetch(batchSize).batch(batchSize).collate()
+
+
+def _defaultTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
     return source.cycle().shuffle().sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedTrainTransform).prefetch(batchSize).batch(batchSize).collate()
 
-def defaultEvalDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
-    return source.sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedEvalTransform).prefetch(batchSize).batch(batchSize).collate()
+
+def _selfSupervisedTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, nViews: int):
+    return source.cycle().shuffle().sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedTrainTransform).prefetch(batchSize).batch(batchSize).collate()
+
+
 
 def toDevice(inputs, device):
     i, img = inputs

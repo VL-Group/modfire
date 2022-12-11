@@ -10,7 +10,7 @@ except ImportError:
     warn("Couldn't import apex's `FusedLAMB` optimizer, ignored in `OptimRegistry`.")
 from vlutils.base import Registry
 
-from modfire.dataset import DatasetRegistry
+from modfire.dataset import DatasetRegistry, DataPipeRegistry
 from modfire.model import ModelRegistry
 from modfire.criterion import CriterionRegistry
 from modfire.train.hooks import HookRegistry
@@ -24,7 +24,8 @@ __all__ = [
     "CriterionRegistry",
     "OptimRegistry",
     "HookRegistry",
-    "DatasetRegistry"
+    "DatasetRegistry",
+    "DataPipeRegistry"
 ]
 
 class OptimRegistry(Registry[Callable[..., Optimizer]]):

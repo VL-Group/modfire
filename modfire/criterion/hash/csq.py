@@ -25,10 +25,8 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
         self.register_buffer("centroids", self.generateCentroids(bits, numClasses))
         self._lambda = _lambda
 
-    def beforeRun(self, *_, trainSet, saver, **__) -> Any:
-        saver.debug("Call `CSQ.beforeRun()`.")
-        if not hasattr(trainSet, "NumClass"):
-            raise AttributeError("You provide a dataset without attribtue `NumClass`.")
+    def beforeRun(self, *_, trainSet, logger, **__) -> Any:
+        logger.debug("Call `CSQ.beforeRun()`.")
         if trainSet.NumClass != len(self.centroids):
             raise ValueError("The dataset's `NumClass` not equals to centriods' number.")
 
@@ -165,10 +163,10 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
         # reset params
         # self.mapper.reset()
 
-    def epochFinish(self, step: int, epoch: int, *_, saver, **__):
-        saver.debug("Call `CSQ_D.epochFinish()`.")
+    def epochFinish(self, step: int, epoch: int, *_, logger, **__):
+        logger.debug("Call `CSQ_D.epochFinish()`.")
         if epoch:
-            saver.debug("Reset permutation index in `CSQ_D`.")
+            logger.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
 
     def forward(self, x: torch.Tensor, y: torch.Tensor, *_):

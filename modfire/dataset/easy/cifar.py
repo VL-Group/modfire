@@ -1,29 +1,20 @@
 import abc
-from typing import Any, Tuple, List
+from typing import List
 import logging
-from contextlib import contextmanager
 
 from PIL import Image
 import torch
 import numpy as np
 import torch.nn.functional as F
-from torch.utils.data import IterDataPipe
-from torch.utils.data.datapipes.iter import IterableWrapper
 from torchvision.datasets import CIFAR10 as _c10, CIFAR100 as _c100
 from vlutils.saver import StrPath
 
 from ..dataset import Database, Dataset, TrainSplit, QuerySplit, DatasetRegistry
-from ..utils import defaultTrainingDataPipe, defaultEvalDataPipe, toDevice
-
-
-def loadImg(inputs):
-    i, img = inputs
-    return i, Image.fromarray(img)
 
 
 class CIFAR(Dataset, abc.ABC):
-    def __init__(self, root: StrPath, mode: str, batchSize: int):
-        super().__init__(root, mode, batchSize)
+    def __init__(self, root: StrPath, mode: str, batchSize: int, pipeline):
+        super().__init__(root, mode, batchSize, pipeline)
         allImages, allTargets = self.getAlldata(root, True)
         allTrains, allQueries, allDatabase = list(), list(), list()
         allTrainLabels, allQueryLabels, allDatabaseLabels = list(), list(), list()
@@ -51,6 +42,11 @@ class CIFAR(Dataset, abc.ABC):
         # self.evalTransform = evalTransform
         # self.targetTransform = targetTransform
 
+
+    def _loadImg(self, inputs):
+        i, img = inputs
+        return i, Image.fromarray(img.numpy())
+
     @staticmethod
     @abc.abstractmethod
     def getAlldata(root, shuffle: bool = True):
@@ -58,103 +54,20 @@ class CIFAR(Dataset, abc.ABC):
 
     @property
     def TrainSplit(self) -> TrainSplit:
-        _ = super().TrainSplit
         class _trainSet(TrainSplit):
-            _len = len(self.allTrains)
-            _batchSize = self.batchSize
-            _trains = self.allTrains.numpy()
-            _labels = self.allTrainLabels
-            def __len__(self):
-                return self._len
+            _numClass = len(self.Semantics)
             @property
-            def BatchSize(self) -> int:
-                return self._batchSize
-            @property
-            def DataPipe(self) -> IterDataPipe:
-                return defaultTrainingDataPipe(IterableWrapper(self._labels).zip(IterableWrapper(self._trains)), loadImg, self._batchSize)
-
-            @contextmanager
-            def device(self, device):
-                originalDevice = self._labels.device
-                self._labels = self._labels.to(device)
-                yield
-                self._labels = self._labels.to(originalDevice)
-        return _trainSet()
+            def NumClass(self) -> int:
+                return self._numClass
+        return _trainSet(self.allTrains, self.allTrainLabels, self.batchSize, self._loadImg, self.pipeline)
 
     @property
     def QuerySplit(self) -> QuerySplit:
-        _ = super().QuerySplit
-        class _querySet(QuerySplit):
-            # _pipe = _dataPipe()
-            _allQueryLabels = self.allQueryLabels
-            _len = len(self.allQueries)
-            _batchSize = self.batchSize
-            _queries = self.allQueries.numpy()
-
-            def __len__(self):
-                return self._len
-            @property
-            def BatchSize(self) -> int:
-                return self._batchSize
-            @property
-            def DataPipe(self) -> IterDataPipe:
-                return defaultEvalDataPipe(IterableWrapper(self._queries).enumerate(), loadImg, self._batchSize)
-            def info(self, indices: torch.Tensor) -> torch.Tensor:
-                # [Nq, nClass]
-                return self._allQueryLabels[indices]
-
-            @contextmanager
-            def device(self, device):
-                originalDevice = self._allQueryLabels.device
-                self._allQueryLabels = self._allQueryLabels.to(device)
-                yield
-                self._allQueryLabels = self._allQueryLabels.to(originalDevice)
-        return _querySet()
+        return QuerySplit(self.allQueries, self.allQueryLabels, self.batchSize, self._loadImg, self.pipeline)
 
     @property
     def Database(self) -> Database:
-        _ = super().Database
-        class _database(Database):
-            # _pipe = _dataPipe()
-            _baseLabels = self.allDatabaseLabels
-            _len = len(self.allDatabase)
-            _batchSize = self.batchSize
-            _database = self.allDatabase.numpy()
-            def __len__(self):
-                return self._len
-            @property
-            def BatchSize(self) -> int:
-                return self._batchSize
-            @property
-            def DataPipe(self):
-                return defaultEvalDataPipe(IterableWrapper(self._database).enumerate(), loadImg, self._batchSize)
-            def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-                """Return true positives based on query info.
-
-                Args:
-                    queryInfo (torch.Tensor): Numeric label of [Nq] tensor. Labels follow CIFAR-10 / CIFAR-100.
-                    rankList (torch.Tensor): [Nq, numReturns] indices, each row represents a rank list of top K from database. Indices are obtained by DatPipe.
-
-                Returns:
-                    torch.Tensor: [Nq, numReturns] true positives.
-                    torch.Tensor: [Nq], Number of all trues w.r.t. query.
-                """
-                labels = self._baseLabels.to(rankList.device)
-                # NOTE: Here, queryInfo is label of queries.
-                # [Nq, k, nClass]
-                databaseLabels = labels[rankList]
-                # [Nq, k]
-                matching = torch.einsum("qc,qkc->qk", queryInfo, databaseLabels) > 0
-                # [Nq, Nb] -> [Nq]
-                numAllTrues = ((queryInfo @ labels.T) > 0).sum(-1)
-                return matching, numAllTrues
-            @contextmanager
-            def device(self, device):
-                originalDevice = self._baseLabels.device
-                self._baseLabels = self._baseLabels.to(device)
-                yield
-                self._baseLabels = self._baseLabels.to(originalDevice)
-        return _database()
+        return Database(self.allDatabase, self.allDatabaseLabels, self.batchSize, self._loadImg, self.pipeline)
 
 
 @DatasetRegistry.register

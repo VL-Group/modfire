@@ -22,7 +22,7 @@ from vlutils.runtime import relativePath
 from vlutils.config import summary
 
 import modfire.utils.registry
-from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry
+from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry, DataPipeRegistry
 from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
@@ -110,7 +110,6 @@ class PalTrainer(Restorable):
 
         datasets = self._createDatasets(self.config, self.saver)
 
-
         # The DistributedReadingService is too slow since it use only one worker per node.
         # NOTE: cancel the comment once if the above issue is fixed.
         # with DataLoader(datasets["trainSet"].DataPipe, reading_service=DistributedReadingService()) as trainLoader:
@@ -190,18 +189,15 @@ class PalTrainer(Restorable):
 
     @staticmethod
     def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
-        saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
-        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
-        # saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
-        # querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySet
-        # saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
-        # database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
-        # saver.debug("Train and validation datasets mounted.")
-        saver.debug("Training dataset mounted.")
+        saver.debug("Create `config.Train.TrainSet` (\"%s\") with training pipeline: `%s`.", config.Train.TrainSet.Key, config.Train.TrainSet.Pipeline.Key or "default")
+        try:
+            trainPipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.TrainSet.Pipeline.Key), saver)(**config.Train.TrainSet.Pipeline.Params)
+        except KeyError:
+            trainPipeline = None
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params, pipeline=trainPipeline)
+        saver.debug("Training dataset \r\n\t%s \r\nmounted.", trainSet)
         return {
-            "trainSet": trainSet
-            # "database": database,
-            # "querySet": querySet
+            "trainSet": trainSet.Split
         }
 
     @staticmethod
@@ -414,17 +410,36 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
     @staticmethod
     def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
-        saver.debug("Create `config.Train.TrainSet` (\"%s\").", config.Train.TrainSet.Key)
-        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params).TrainSplit
-        saver.debug("Create `config.Train.QuerySet` (\"%s\").", config.Train.QuerySet.Key)
-        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params).QuerySplit
-        saver.debug("Create `config.Train.Database` (\"%s\").", config.Train.Database.Key)
-        database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params).Database
-        saver.debug("Train and validation datasets mounted.")
+        saver.debug("Create `config.Train.TrainSet` (\"%s\") with training pipeline: `%s`.", config.Train.TrainSet.Key, config.Train.TrainSet.Pipeline.Key or "default")
+        try:
+            trainPipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.TrainSet.Pipeline.Key), saver)(**config.Train.TrainSet.Pipeline.Params)
+        except KeyError:
+            trainPipeline = None
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params, pipeline=trainPipeline)
+
+
+        saver.debug("Create `config.Train.QuerySet` (\"%s\") with evaluation pipeline: `%s`.", config.Train.QuerySet.Key, config.Train.QuerySet.Pipeline.Key or "default")
+        try:
+            queryPipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.QuerySet.Pipeline.Key), saver)(**config.Train.QuerySet.Pipeline.Params)
+        except KeyError:
+            queryPipeline = None
+        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params, pipeline=queryPipeline)
+
+
+        saver.debug("Create `config.Train.Database` (\"%s\") with evaluation pipeline: `%s`.", config.Train.Database.Key, config.Train.Database.Key or "default")
+        try:
+            databasePipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.Database.Pipeline.Key), saver)(**config.Train.Database.Pipeline.Params)
+        except KeyError:
+            databasePipeline = None
+        database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params, pipeline=databasePipeline)
+
+
+
+        saver.debug("Train set \r\n\t%s, \r\nquery set \r\n\t%s and \r\ndatabase \r\n\t%s \r\nmounted.", trainSet, database, querySet)
         return {
-            "trainSet": trainSet,
-            "database": database,
-            "querySet": querySet
+            "trainSet": trainSet.Split,
+            "database": database.Split,
+            "querySet": querySet.Split
         }
 
     def log(self, *_, **__):

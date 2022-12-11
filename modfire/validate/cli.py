@@ -85,7 +85,7 @@ def main(debug: bool, quiet: bool, export: bool, path: pathlib.Path, test: pathl
     validator = Validator(testConfig.NumReturns, "cuda")
 
     with getRichProgress() as progress:
-        result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Database, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).QuerySplit, progress)
+        result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Split, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).Split, progress)
         logger.info(summary)
 
     if not export:
