@@ -41,7 +41,7 @@ train:
       mode: ce
       d: 256
       numClasses: 10
-      temperature: 0.2 # 1/5
+      temperature: 0.1 # 1/10
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py

@@ -78,10 +78,10 @@ class PQLayer(ABC, nn.Module):
         return distance
 
     @abstractmethod
-    def trainablePQFunction(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor, Tensor]:
         raise NotImplementedError
 
-    def forward(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor, Tensor]:
         if self.training:
             # NOTE: Due to the asymmertric distance computation, we need to return x and q simultaneously for training.
             return self.trainablePQFunction(x, *args, **kwargs)
@@ -92,16 +92,16 @@ class PQLayer(ABC, nn.Module):
 
 @PQRegistry.register
 class SoftPQ(PQLayer):
-    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
         logit = (-distance / temperature).softmax(-1)
-        return x, torch.einsum("nmk,mkd->nmd", logit, self.codebook).reshape(x.shape)
+        return x, torch.einsum("nmk,mkd->nmd", logit, self.codebook).reshape(x.shape), logit
 
 @PQRegistry.register
 class SoftSTEPQ(PQLayer):
-    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -111,18 +111,18 @@ class SoftSTEPQ(PQLayer):
         hard = distance.argmin(-1)
         hard = F.one_hot(hard, num_classes=self._k)
         hard = torch.einsum("nmk,mkd->nmd", hard, self.codebook).reshape(x.shape)
-        return x, (hard - soft).detach() + soft
+        return x, (hard - soft).detach() + soft, logit
 
 @PQRegistry.register
 class HardPQ(PQLayer):
-    def trainablePQFunction(self, x: Tensor, *_) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m]
         hard = distance.argmin(-1)
         hard = F.one_hot(hard, num_classes=self._k)
         hard = torch.einsum("nmk,mkd->nmd", hard, self.codebook).reshape(x.shape)
-        return x, (hard - x).detach() + x
+        return x, (hard - x).detach() + x, (-distance / temperature).softmax(-1)
 
 @PQRegistry.register
 class GumbelPQ(PQLayer):
@@ -130,13 +130,13 @@ class GumbelPQ(PQLayer):
         super().__init__(codebook)
         self._temperature = nn.Parameter(torch.ones((self._m, 1)))
 
-    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
         hard = F.gumbel_softmax(-distance * self._temperature, temperature, hard=True)
         hard = torch.einsum("nmk,mkd->nmd", hard, self.codebook).reshape(x.shape)
-        return x, hard
+        return x, hard, (-distance / temperature).softmax(-1)
 
 
 @ModelRegistry.register
@@ -148,8 +148,8 @@ class PQModel(PQWrapper):
 
     def forward(self, x, *args, **kwArgs):
         x = self._backbone(x)
-        x, q = self._pqMethod(x, *args, **kwArgs)
-        return { "x": x, "q": q }
+        x, q, l = self._pqMethod(x, *args, **kwArgs)
+        return { "x": x, "q": q, "logits": l }
 
     def encode(self, image: Tensor):
         # ** IMPORTANT **: Use database to encode, not here
