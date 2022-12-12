@@ -2,7 +2,7 @@ import math
 from copy import deepcopy
 import os
 import shutil
-from typing import Callable, Tuple, Dict, Union
+from typing import Callable, Tuple, Dict, Union, Any
 import gc
 import pathlib
 import hashlib
@@ -128,13 +128,20 @@ class PalTrainer(Restorable):
                     self._epochStart(epochStartHook, **datasets)
 
                 # Main loop
+                # Any dict used as args for model, criterion
                 otherArgs = self._stepStart(stepStartHook, inputs=(targets, images))
                 self._optimizer.zero_grad()
-                z = self._model(images.to(self.rank, non_blocking=True), **otherArgs)
-                loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True), **otherArgs)
+
+                # A dict as keyword arguments for criterion
+                outputs = self._model(images.to(self.rank, non_blocking=True), **otherArgs)
+
+                # loss: A scalar, stats: A dict as keyword arguments for logging
+                loss, stats = self._criterion(**outputs, y=targets.to(self.rank, non_blocking=True), **otherArgs)
+
                 loss.backward()
                 self._optimizer.step()
-                self._stepFinish(stepFinishHook, loss=loss, stats=stats, outputs=(z), **otherArgs)
+
+                self._stepFinish(stepFinishHook, loss=loss, stats=stats, outputs=outputs, **otherArgs)
                 if self._step % batchesOneEpoch == 0:
                     try:
                         self._epochFinish(epochFinishHook, **datasets)
@@ -274,7 +281,7 @@ class PalTrainer(Restorable):
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
         self.saver.debug("End call `_afterRun()`.")
 
-    def _stepStart(self, hook, *args, **kwArgs):
+    def _stepStart(self, hook, *args, **kwArgs) -> Dict[str, Any]:
         return hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
     def _stepFinish(self, hook, *args, loss, **kwArgs):

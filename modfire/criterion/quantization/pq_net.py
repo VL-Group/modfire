@@ -73,13 +73,13 @@ class PQNet(nn.Module, modfire.train.hooks.StepStartHook):
     def _ceImpl(self, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor):
         logits = torch.cat((self._finalLayer(x), self._finalLayer(q)))
         labels = torch.cat((y, y))
-        if labels.sum(-1) > (1 + Consts.Eps):
+        if torch.any(labels.sum(-1) > (1 + Consts.Eps)):
             # multi-label
             return F.binary_cross_entropy_with_logits(logits, labels)
         else:
             # single-label, supports soft labels
             return F.cross_entropy(logits, labels)
 
-    def forward(self, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, *_):
+    def forward(self, *, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, **__):
         loss = self._calcLoss(x, q, y)
         return loss, { "loss": loss }

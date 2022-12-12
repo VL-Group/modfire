@@ -57,15 +57,16 @@ class PQSearcher(Searcher):
         # Codebook params
         self.M = M
         self.K = K
-        self.D = D
+        self.D = D * M
         self.assignCodebook(codebook)
 
     def assignCodebook(self, codebook: np.ndarray):
         M, K, D = codebook.shape
-        if self.M != M or self.K != K or self.D != D:
+        if self.M != M or self.K != K or self.D != (D * M):
             raise ValueError(f"Codebook shape mis-match. Expect: {[self.M, self.K, self.D]}, Got: {[M, K, D]}.")
         faiss.copy_array_to_vector(codebook.ravel(), self.pq.pq.centroids)
         self.index.is_trained = True
+        self.pq.is_trained = True
 
     def reset(self):
         return self.index.reset()

@@ -20,7 +20,7 @@ class IntraNormalization(nn.Module):
         self._m = m
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.normalize(x.reshape(*x.shape[-1], self._m, -1)).reshape(x.shape)
+        return F.normalize(x.reshape(*x.shape[:-1], self._m, -1)).reshape(x.shape)
 
 class Backbone(nn.Module):
     def __init__(self, m: int, d: int, intraNormalization: bool = True, backbone: str = "resnet50", pretrained: bool = True):
@@ -72,7 +72,7 @@ class PQLayer(ABC, nn.Module):
         # [m, k]
         c2 = (self.codebook ** 2).sum(-1)
         # [n, m, d] * [m, k, d] -sum-> [n, m, k]
-        inter = torch.einsum("nmd,mkd->nmk", x, self._codebook)
+        inter = torch.einsum("nmd,mkd->nmk", x, self.codebook)
         # [n, m, k]
         distance = x2 + c2 - 2 * inter
         return distance
@@ -93,7 +93,6 @@ class PQLayer(ABC, nn.Module):
 @PQRegistry.register
 class SoftPQ(PQLayer):
     def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
-        print(temperature)
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -149,7 +148,8 @@ class PQModel(PQWrapper):
 
     def forward(self, x, *args, **kwArgs):
         x = self._backbone(x)
-        return self._pqMethod(x, *args, **kwArgs)
+        x, q = self._pqMethod(x, *args, **kwArgs)
+        return { "x": x, "q": q }
 
     def encode(self, image: Tensor):
         # ** IMPORTANT **: Use database to encode, not here

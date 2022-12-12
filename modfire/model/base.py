@@ -175,7 +175,7 @@ class PQWrapper(BaseWrapper):
     @torch.no_grad()
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
-            task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:4d}", suffix="")
+            task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:.1f}k", suffix="")
         with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader:
             total = 0
             for idx, image in dataLoader:
@@ -184,7 +184,7 @@ class PQWrapper(BaseWrapper):
                 inrement = len(x)
                 total += inrement
                 if progress is not None:
-                    progress.update(task, advance=inrement, progress=f" {total:4d}")
+                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
                 yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(x.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
         if progress is not None:
             progress.remove_task(task)

@@ -32,10 +32,10 @@ class ADSH(nn.Module):
         S = S * (1 + r) - r
         return S
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor):
+    def forward(self, *, z: torch.Tensor, y: torch.Tensor, **_):
         raise NotImplementedError("Method not implemented.")
         S = self.calcSim(y, self.databaseLabel)
-        softSigned = x.tanh()
+        softSigned = z.tanh()
         # random sample
-        randIdx = torch.randperm(len(self.U))[:len(x)]
+        randIdx = torch.randperm(len(self.U))[:len(z)]
         self.U.data[randIdx].copy_(softSigned)

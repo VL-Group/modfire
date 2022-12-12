@@ -169,13 +169,13 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             logger.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, *_):
+    def forward(self, *, z: torch.Tensor, y: torch.Tensor, **_):
         # X are permuted on last dim according to permIdx
-        x = x[:, self.permIdx]
+        z = z[:, self.permIdx]
 
-        originalX = x.clone().detach()
+        originalX = z.clone().detach()
         # [N, M * 256]
-        decimalHat = self.mapper(x.detach(), True)
+        decimalHat = self.mapper(z.detach(), True)
         # M * [N, 256]
         splitted = torch.chunk(decimalHat, self.m, -1)
         rawSplit = torch.chunk(self.bitFlip(originalX), self.m, -1)
@@ -192,7 +192,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
         hashCenter = self.centroids[:, self.permIdx].clone().detach()
 
         netLoss = list()
-        decimalHatGrad = self.mapper(x, False)
+        decimalHatGrad = self.mapper(z, False)
         # M * [N, 256]
         splitted = torch.chunk(decimalHatGrad, self.m, -1)
 
@@ -221,7 +221,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
 
         codesToCenterDistance = list()
         for i in range(len(self.centroids)):
-            thisClassFeatures = x[y[:, i] > 0]
+            thisClassFeatures = z[y[:, i] > 0]
             featureToCenterHamming = ((thisClassFeatures > 0) != (hashCenter[i] > 0)).sum(-1)
             # [?, D] with [D] -> sum() -> [?]
             codesToCenterDistance.append(featureToCenterHamming)
