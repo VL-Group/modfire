@@ -149,7 +149,7 @@ def getRichProgress(disable: bool = False) -> RichProgress:
 
 
 class SafeTerminate(abc.ABC):
-    def __init__(self, logger: Optional[LoggerBase]= None) -> None:
+    def __init__(self, logger: Optional[LoggerBase]= None):
         self.logger = logger or logging
         signal.signal(signal.SIGTERM, self._terminatedHandler)
 

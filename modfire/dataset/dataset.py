@@ -39,7 +39,11 @@ class SplitBase(abc.ABC):
 
     @property
     def DataPipe(self) -> IterDataPipe:
-        return self._pipeline(IterableWrapper(self._labels).zip(IterableWrapper(self._samples)), self._loadImg, self._batchSize)
+        return self._pipeline(
+            labels=IterableWrapper(self._labels),
+            samples=IterableWrapper(self._samples),
+            mapFunctionAfterBaseConversion=self._loadImg,
+            batchSize=self._batchSize)
 
     @property
     def BatchSize(self) -> int:
@@ -67,7 +71,10 @@ class TrainSplit(SplitBase, abc.ABC):
 class QuerySplit(SplitBase, abc.ABC):
     @property
     def DataPipe(self) -> IterDataPipe:
-        return self._pipeline(IterableWrapper(self._samples).enumerate(), self._loadImg, self._batchSize)
+        return self._pipeline(
+            samples=IterableWrapper(self._samples),
+            mapFunctionAfterBaseConversion=self._loadImg,
+            batchSize=self._batchSize)
     def info(self, indices) -> Any:
         """Return queries' info for Database.judge()
         Args:
@@ -83,7 +90,10 @@ class QuerySplit(SplitBase, abc.ABC):
 class Database(SplitBase, abc.ABC):
     @property
     def DataPipe(self) -> IterDataPipe:
-        return self._pipeline(IterableWrapper(self._samples).enumerate(), self._loadImg, self._batchSize)
+        return self._pipeline(
+            samples=IterableWrapper(self._samples),
+            mapFunctionAfterBaseConversion=self._loadImg,
+            batchSize=self._batchSize)
     def judge(self, queryInfo: Any, rankList: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return true positives based on query info.
 

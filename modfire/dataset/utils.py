@@ -3,6 +3,7 @@ import functools
 
 import torch
 from torch.utils.data import IterDataPipe
+from torch.utils.data.datapipes.iter import IterableWrapper
 import torch.nn.functional as F
 import torchvision.transforms as T
 from vlutils.base import Registry
@@ -57,10 +58,10 @@ def labelToOneHot(source: IterDataPipe, numClasses: int):
     return source.map(lambda x: F.one_hot(x, num_classes=numClasses))
 
 
-def mappedTrainTransform(inputs):
+def trainTransform(inputs):
     return inputs[0], TrainTransform(inputs[1])
 
-def mappedEvalTransform(inputs):
+def evalTransform(inputs):
     return inputs[0], EvalTransform(inputs[1])
 
 
@@ -86,20 +87,42 @@ def SelfSupervisedTrainingDataPipe(*_, nViews: int, **__):
 
 
 
+def _defaultEvalDataPipe(*, samples: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, **_):
+    return samples\
+        .enumerate()\
+        .sharding_filter()\
+        .map(mapFunctionAfterBaseConversion)\
+        .map(evalTransform)\
+        .prefetch(batchSize)\
+        .batch(batchSize)\
+        .collate()
 
 
+def _defaultTrainingDataPipe(*, labels: IterDataPipe, samples: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, **_):
+    return labels\
+        .zip(samples)\
+        .cycle()\
+        .shuffle()\
+        .sharding_filter()\
+        .map(mapFunctionAfterBaseConversion)\
+        .map(trainTransform)\
+        .prefetch(batchSize)\
+        .batch(batchSize)\
+        .collate()
 
 
-def _defaultEvalDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
-    return source.sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedEvalTransform).prefetch(batchSize).batch(batchSize).collate()
-
-
-def _defaultTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int):
-    return source.cycle().shuffle().sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedTrainTransform).prefetch(batchSize).batch(batchSize).collate()
-
-
-def _selfSupervisedTrainingDataPipe(source: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, nViews: int):
-    return source.cycle().shuffle().sharding_filter().map(mapFunctionAfterBaseConversion).map(mappedTrainTransform).prefetch(batchSize).batch(batchSize).collate()
+def _selfSupervisedTrainingDataPipe(*, samples: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, nViews: int, **_):
+    return IterableWrapper([None])\
+        .zip_longest(samples)\
+        .cycle()\
+        .shuffle()\
+        .sharding_filter()\
+        .repeat(nViews)\
+        .map(mapFunctionAfterBaseConversion)\
+        .map(trainTransform)\
+        .prefetch(batchSize)\
+        .batch(batchSize)\
+        .collate()
 
 
 

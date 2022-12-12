@@ -11,7 +11,7 @@ import modfire.train.hooks
 
 from ..utils import pairwiseHamming, CriterionRegistry
 
-logger = logging.getLogger(Consts.Name)
+logger = logging.getLogger(Consts.Root)
 
 
 class ADSH(nn.Module):
@@ -20,7 +20,7 @@ class ADSH(nn.Module):
     """
     databaseLabel: torch.Tensor
     U: torch.Tensor
-    def __init__(self, sampleSize: int, bits: int) -> None:
+    def __init__(self, sampleSize: int, bits: int):
         super().__init__()
         raise NotImplementedError("Method not implemented.")
         self.register_buffer("U", torch.zeros((sampleSize, bits)))

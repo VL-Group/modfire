@@ -94,16 +94,16 @@ class BinaryWrapper(BaseWrapper):
     def add(self, database: Database, progress: Optional[Progress] = None):
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=len(database), progress=f" {0:.1f}k", suffix="")
-        dataLoader = DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16)))
-        total = 0
-        for idx, image in dataLoader:
-            # [N, bits]
-            h = self.encode(image.to(self._dummy.device, non_blocking=True))
-            self.database.add(h.cpu().numpy(), idx.cpu().numpy())
-            inrement = len(h)
-            total += inrement
-            if progress is not None:
-                progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+        with DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16))) as dataLoader:
+            total = 0
+            for idx, image in dataLoader:
+                # [N, bits]
+                h = self.encode(image.to(self._dummy.device, non_blocking=True))
+                self.database.add(h.cpu().numpy(), idx.cpu().numpy())
+                inrement = len(h)
+                total += inrement
+                if progress is not None:
+                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
         if progress is not None:
             progress.remove_task(task)
 
@@ -118,17 +118,17 @@ class BinaryWrapper(BaseWrapper):
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:.1f}k", suffix="")
-        dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16)))
-        total = 0
-        for idx, image in dataLoader:
-            # [N, bits]
-            h = self.encode(image.to(self._dummy.device, non_blocking=True))
-            inrement = len(h)
-            total += inrement
-            if progress is not None:
-                progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+        with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader:
+            total = 0
+            for idx, image in dataLoader:
+                # [N, bits]
+                h = self.encode(image.to(self._dummy.device, non_blocking=True))
+                inrement = len(h)
+                total += inrement
+                if progress is not None:
+                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
 
-            yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(h.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
+                yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(h.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
         if progress is not None:
             progress.remove_task(task)
 
@@ -138,29 +138,29 @@ class PQWrapper(BaseWrapper):
     def __init__(self, m: int, k: int, d: int):
         super().__init__(m * int(math.log2(k)))
         self.codebook = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(m, k, d // m)))
-        self.database = PQSearcher(self.codebook.cpu().numpy())
+        self.database = PQSearcher(self.codebook.cpu().detach().numpy())
 
     @property
     def Type(self) -> ModelType:
         return ModelType.ProductQuantization
 
     def updateCodebook(self):
-        self.database.assignCodebook(self.codebook.cpu().numpy())
+        self.database.assignCodebook(self.codebook.cpu().detach().numpy())
 
     @torch.no_grad()
     def add(self, database: Database, progress: Optional[Progress] = None):
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=len(database), progress=f" {0:.1f}k", suffix="")
-        dataLoader = DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16)))
-        total = 0
-        for idx, image in dataLoader:
-            # [N, D]
-            x = self.encode(image.to(self._dummy.device, non_blocking=True))
-            self.database.add(x.cpu().numpy(), idx.cpu().numpy())
-            inrement = len(x)
-            total += inrement
-            if progress is not None:
-                progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+        with DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16))) as dataLoader:
+            total = 0
+            for idx, image in dataLoader:
+                # [N, D]
+                x = self.encode(image.to(self._dummy.device, non_blocking=True))
+                self.database.add(x.cpu().numpy(), idx.cpu().numpy())
+                inrement = len(x)
+                total += inrement
+                if progress is not None:
+                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
         if progress is not None:
             progress.remove_task(task)
 
@@ -176,15 +176,15 @@ class PQWrapper(BaseWrapper):
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:4d}", suffix="")
-        dataLoader = DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16)))
-        total = 0
-        for idx, image in dataLoader:
-            # [D]
-            x = self.encode(image.to(self._dummy.device, non_blocking=True))
-            inrement = len(x)
-            total += inrement
-            if progress is not None:
-                progress.update(task, advance=inrement, progress=f" {total:4d}")
-            yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(x.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
+        with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader:
+            total = 0
+            for idx, image in dataLoader:
+                # [D]
+                x = self.encode(image.to(self._dummy.device, non_blocking=True))
+                inrement = len(x)
+                total += inrement
+                if progress is not None:
+                    progress.update(task, advance=inrement, progress=f" {total:4d}")
+                yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(x.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
         if progress is not None:
             progress.remove_task(task)

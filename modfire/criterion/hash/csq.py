@@ -11,7 +11,7 @@ import modfire.train.hooks
 
 from ..utils import pairwiseHamming, CriterionRegistry
 
-logger = logging.getLogger(Consts.Name)
+logger = logging.getLogger(Consts.Root)
 
 @CriterionRegistry.register
 class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
@@ -19,7 +19,7 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
         Li Yuan, Tao Wang, Xiaopeng Zhang, Francis E. H. Tay, Zequn Jie, Wei Liu, Jiashi Feng: Central Similarity Quantization for Efficient Image and Video Retrieval. CVPR 2020: 3080-3089.
     """
     centroids: torch.Tensor
-    def __init__(self, bits: int, numClasses: int, _lambda: float = 1e-4) -> None:
+    def __init__(self, bits: int, numClasses: int, _lambda: float = 1e-4):
         super().__init__()
         self.bits = bits
         self.register_buffer("centroids", self.generateCentroids(bits, numClasses))
@@ -116,7 +116,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             return x
 
     class _mapNet(nn.Module):
-        def __init__(self, bits) -> None:
+        def __init__(self, bits):
             super().__init__()
             self.m = bits // 8
             ffnNet = lambda: nn.Sequential(
@@ -140,7 +140,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
     multiplier: torch.LongTensor
     permIdx: torch.LongTensor
 
-    def __init__(self, bits: int, numClasses: int, _lambda: float = 0.0001) -> None:
+    def __init__(self, bits: int, numClasses: int, _lambda: float = 0.0001):
         super().__init__(bits, numClasses, _lambda)
         self.bitFlip = self._randomBitFlip(bits, int(bits // 32) ** 2)
         self.mapper = self._mapNet(bits)

@@ -114,8 +114,18 @@ def setWeightDecay(
 
     _add_params(model)
 
-    param_groups = []
+    # remove duplicates
+    cleanedParams = {}
+    paramIds = set()
     for key in params:
-        if len(params[key]) > 0:
-            param_groups.append({"params": params[key], "weight_decay": params_weight_decay[key]})
+        cleanedParams[key] = list()
+        for x in params[key]:
+            if id(x) not in paramIds:
+                cleanedParams[key].append(x)
+                paramIds.add(id(x))
+
+    param_groups = []
+    for key in cleanedParams:
+        if len(cleanedParams[key]) > 0:
+            param_groups.append({"params": cleanedParams[key], "weight_decay": params_weight_decay[key]})
     return param_groups

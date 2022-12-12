@@ -55,9 +55,9 @@ class PQRegistry(Registry):
 
 class PQLayer(ABC, nn.Module):
     codebook: nn.Parameter
-    def __init__(self, codebook: nn.Parameter) -> None:
+    def __init__(self, codebook: nn.Parameter):
         super().__init__()
-        self.register_parameter("codebook", codebook)
+        self.codebook = codebook
         self._m, self._k, self._d_m = codebook.shape
 
     # NOTE: ALREADY CHECKED CONSISTENCY WITH NAIVE IMPL.
@@ -78,7 +78,7 @@ class PQLayer(ABC, nn.Module):
         return distance
 
     @abstractmethod
-    def trainablePQFunction(self, x: Tensor, *args, **kwargs) -> Tensor:
+    def trainablePQFunction(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]:
         raise NotImplementedError
 
     def forward(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]:
@@ -92,7 +92,8 @@ class PQLayer(ABC, nn.Module):
 
 @PQRegistry.register
 class SoftPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+        print(temperature)
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -101,7 +102,7 @@ class SoftPQ(PQLayer):
 
 @PQRegistry.register
 class SoftSTEPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]
@@ -115,7 +116,7 @@ class SoftSTEPQ(PQLayer):
 
 @PQRegistry.register
 class HardPQ(PQLayer):
-    def trainableHashFunction(self, x: Tensor, *_) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, *_) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m]
@@ -130,7 +131,7 @@ class GumbelPQ(PQLayer):
         super().__init__(codebook)
         self._temperature = nn.Parameter(torch.ones((self._m, 1)))
 
-    def trainableHashFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
+    def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor]:
         # [n, m, k]
         distance = self._distance(x)
         # [n, m, k]

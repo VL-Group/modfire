@@ -49,7 +49,7 @@ class PalTrainer(Restorable):
         self.worldSize = dist.get_world_size()
         torch.cuda.set_device(self.rank)
         self.config = config
-        self.saver = getSaver(self.config.Train.SaveDir, saveName="saved.ckpt", config=config.serialize(), loggerName=Consts.Name, reserve=False, loggingLevel=loggingLevel, disable=self.rank != 0)
+        self.saver = getSaver(self.config.Train.SaveDir, saveName="saved.ckpt", config=config.serialize(), loggerName="root", reserve=False, loggingLevel=loggingLevel, disable=self.rank != 0)
         prettyStep = PrettyStep()
         self.saver.decorate(lambda: prettyStep(self._step))
 
@@ -128,13 +128,13 @@ class PalTrainer(Restorable):
                     self._epochStart(epochStartHook, **datasets)
 
                 # Main loop
-                self._stepStart(stepStartHook, inputs=(targets, images))
+                otherArgs = self._stepStart(stepStartHook, inputs=(targets, images))
                 self._optimizer.zero_grad()
-                z = self._model(images.to(self.rank, non_blocking=True))
-                loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True))
+                z = self._model(images.to(self.rank, non_blocking=True), **otherArgs)
+                loss, stats = self._criterion(z, targets.to(self.rank, non_blocking=True), **otherArgs)
                 loss.backward()
                 self._optimizer.step()
-                self._stepFinish(stepFinishHook, loss=loss, stats=stats, outputs=(z))
+                self._stepFinish(stepFinishHook, loss=loss, stats=stats, outputs=(z), **otherArgs)
                 if self._step % batchesOneEpoch == 0:
                     try:
                         self._epochFinish(epochFinishHook, **datasets)
@@ -275,7 +275,7 @@ class PalTrainer(Restorable):
         self.saver.debug("End call `_afterRun()`.")
 
     def _stepStart(self, hook, *args, **kwArgs):
-        hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
+        return hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
     def _stepFinish(self, hook, *args, loss, **kwArgs):
         self._step += 1

@@ -21,6 +21,7 @@ class ConstsMetaClass(type):
 
 class Consts(metaclass=ConstsMetaClass):
     Name = "modfire"
+    Root = "root"
     # lazy load
     # TempDir = "/tmp/modfire/"
     Eps = 1e-6

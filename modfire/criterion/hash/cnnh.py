@@ -13,7 +13,7 @@ import modfire.train.hooks
 
 from ..utils import pairwiseHamming, CriterionRegistry
 
-logger = logging.getLogger(Consts.Name)
+logger = logging.getLogger(Consts.Root)
 
 
 @CriterionRegistry.register
@@ -23,7 +23,7 @@ class CNNH(nn.Module, modfire.train.hooks.BeforeRunHook):
     """
     S: torch.Tensor
     H: torch.Tensor
-    def __init__(self, bits: int, stageOneLoop: int) -> None:
+    def __init__(self, bits: int, stageOneLoop: int):
         super().__init__()
         self.bits = bits
         self.stageOneLoop = stageOneLoop

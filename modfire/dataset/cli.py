@@ -17,7 +17,7 @@ def checkArgs(debug: bool, quiet: bool):
 
 def main(debug: bool, quiet: bool, root: pathlib.Path, dataset: str):
     loggingLevel = checkArgs(debug, quiet)
-    logger = configLogging(rootName=Consts.Name, level=loggingLevel)
+    logger = configLogging(rootName="root", level=loggingLevel)
     registry = modfire.dataset.DatasetRegistry
     if dataset is None:
         logger.info("Available datasets are:")

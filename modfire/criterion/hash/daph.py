@@ -14,7 +14,7 @@ from modfire.model import ModelRegistry
 
 from ..utils import pairwiseHamming, CriterionRegistry
 
-logger = logging.getLogger(Consts.Name)
+logger = logging.getLogger(Consts.Root)
 
 
 @CriterionRegistry.register
@@ -28,7 +28,7 @@ class DAPH(nn.Module, modfire.train.hooks.EpochStartHook, modfire.train.hooks.Ep
     I: torch.Tensor
     B: torch.Tensor
     H: torch.Tensor
-    def __init__(self, bits: int, alpha: float, beta: float, gamma: float, _lambda: float, modelKey, modelParams) -> None:
+    def __init__(self, bits: int, alpha: float, beta: float, gamma: float, _lambda: float, modelKey, modelParams):
         super().__init__()
         self.bits = bits
         self.alpha = alpha
