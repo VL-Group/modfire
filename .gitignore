@@ -7,7 +7,7 @@ saved/
 tmp/
 *.modfire
 *.tar.gz*
-cifar*/
+# cifar*/
 AllTags81.txt
 Imagelist.txt
 data/
