@@ -16,20 +16,36 @@
 
 
 <p align="center">
-  <a href="https://www.python.org/" target="_blank">
-    <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=000000&color=ffffff" alt="Python"/>
+  <a href="https://www.python.org/#gh-light-mode-only" target="_blank">
+    <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=000000&color=ffffff#gh-light-mode-only" alt="Python"/>
   </a>
-  <a href="https://pytorch.org/" target="_blank">
-    <img src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=000000&color=ffffff" alt="PyTorch"/>
+  <a href="https://pytorch.org/#gh-light-mode-only" target="_blank">
+    <img src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=000000&color=ffffff#gh-light-mode-only" alt="PyTorch"/>
   </a>
-  <a href="https://github.com/VL-Group/modfire/stargazers">
-    <img src="https://img.shields.io/github/stars/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff" alt="Github stars"/>
+  <a href="https://github.com/VL-Group/modfire/stargazers#gh-light-mode-only">
+    <img src="https://img.shields.io/github/stars/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff#gh-light-mode-only" alt="Github stars"/>
   </a>
-  <a href="https://github.com/VL-Group/modfire/network/members">
-    <img src="https://img.shields.io/github/forks/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff" alt="Github forks"/>
+  <a href="https://github.com/VL-Group/modfire/network/members#gh-light-mode-only">
+    <img src="https://img.shields.io/github/forks/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff#gh-light-mode-only" alt="Github forks"/>
   </a>
-  <a href="https://github.com/VL-Group/modfire/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff" alt="Github license"/>
+  <a href="https://github.com/VL-Group/modfire/blob/main/LICENSE#gh-light-mode-only">
+    <img src="https://img.shields.io/github/license/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff#gh-light-mode-only" alt="Github license"/>
+  </a>
+
+  <a href="https://www.python.org/#gh-dark-mode-only" target="_blank">
+    <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=eeeeee&color=0d1117#gh-dark-mode-only" alt="Python"/>
+  </a>
+  <a href="https://pytorch.org/#gh-dark-mode-only" target="_blank">
+    <img src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=eeeeee&color=0d1117#gh-dark-mode-only" alt="PyTorch"/>
+  </a>
+  <a href="https://github.com/VL-Group/modfire/stargazers#gh-dark-mode-only">
+    <img src="https://img.shields.io/github/stars/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=eeeeee&color=333333&labelColor=0d1117#gh-dark-mode-only" alt="Github stars"/>
+  </a>
+  <a href="https://github.com/VL-Group/modfire/network/members#gh-dark-mode-only">
+    <img src="https://img.shields.io/github/forks/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=eeeeee&color=333333&labelColor=0d1117#gh-dark-mode-only" alt="Github forks"/>
+  </a>
+  <a href="https://github.com/VL-Group/modfire/blob/main/LICENSE#gh-dark-mode-only">
+    <img src="https://img.shields.io/github/license/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=eeeeee&color=333333&labelColor=0d1117#gh-dark-mode-only" alt="Github license"/>
   </a>
 </p>
 
@@ -49,7 +65,7 @@ ModFire is a training, testing, deploying toolkit for modern fast image retrieva
    * [Copyright](#copyright)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: runner, at: Tue Dec 13 02:43:46 UTC 2022 -->
+<!-- Added by: runner, at: Tue Dec 13 02:48:19 UTC 2022 -->
 
 <!--te-->
 
