@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from modfire import Consts
 import modfire.train.hooks
 
-from ..utils import pariwiseAffinity, pairwiseInnerProduct, CriterionRegistry
+from ..utils import pairwiseCosine, CriterionRegistry
 
 logger = logging.getLogger(Consts.Root)
 
@@ -25,25 +25,21 @@ class SPQ(nn.Module, modfire.train.hooks.StepStartHook):
     def stepStart(self, step: int, epoch: int, trainer, *_, **__):
         return { "temperature": self.temperature }
 
-    def forward(self, *, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, logits: torch.Tensor, **__):
-        logits = pairwiseInnerProduct(x, q)
-        labels = torch.cat((y, y))
-        if torch.any(labels.sum(-1) > (1 + Consts.Eps)):
-            # multi-label
-            ceLoss = F.binary_cross_entropy_with_logits(logits, labels)
-        else:
-            # single-label, supports soft labels
-            ceLoss = F.cross_entropy(logits, labels)
+    def forward(self, *, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, **__):
+        # [N, N]
+        # [Xa, Xb] vs [Za, Zb]
+        logits = pairwiseCosine(x, q) / self.tContrastive
+        mask = ~torch.eye(len(logits), dtype=torch.bool, device=logits.device)
+        # erase diagnoal
+        # [N, N - 1]
+        logits = logits[mask].reshape(len(x), -1)
 
-        n, d = x.shape
-        c = len(self._centers)
-        # [n, C, d]
-        centerLoss = F.mse_loss(x[:, None, ...].expand(n, c, d), self._centers.expand(n, c, d), reduction="none") + F.mse_loss(q[:, None, ...].expand(n, c, d), self._centers.expand(n, c, d), reduction="none")
-        # mask loss that not on label
-        centerLoss = (centerLoss * y[..., None]).mean()
+        # find another view as label
+        # [N, N]
+        affinity = y[..., None] == y
+        # [N, N - 1]
+        affinity = affinity[mask].reshape(len(x), -1)
 
-        # [n, m, k] -> [m, k] -> 1
-        giniBatch = ((logits.softmax(-1).sum(0) / len(logits)) ** 2).mean()
-        giniSample = -((logits.softmax(-1) ** 2).sum(-1)).mean()
+        loss = F.cross_entropy(logits, affinity.float().argmax(-1))
 
-        return ceLoss + centerLoss + 1e-3 * giniBatch + 1e-3 * giniSample, { "loss": ceLoss + centerLoss, "ceLoss": ceLoss, "centerLoss": centerLoss, "giniBatch": giniBatch, "giniSample": giniSample }
+        return loss, { }

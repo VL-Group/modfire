@@ -1,5 +1,5 @@
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from typing import Any, Dict, List, Optional
 
@@ -89,7 +89,7 @@ class TestConfigSchema(Schema):
 @dataclass
 class General:
     key: str
-    params: Dict[str, Any]
+    params: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def Key(self) -> str:
@@ -102,7 +102,7 @@ class General:
 @dataclass
 class Dataset:
     key: str
-    params: Dict[str, Any]
+    params: Dict[str, Any] = field(default_factory=dict)
     pipeline: General = General("default", {})
 
     @property

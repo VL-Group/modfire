@@ -47,4 +47,4 @@ class DPQ(nn.Module, modfire.train.hooks.StepStartHook):
         giniBatch = ((logits.softmax(-1).sum(0) / len(logits)) ** 2).mean()
         giniSample = -((logits.softmax(-1) ** 2).sum(-1)).mean()
 
-        return ceLoss + centerLoss + 1e-3 * giniBatch + 1e-3 * giniSample, { "loss": ceLoss + centerLoss, "ceLoss": ceLoss, "centerLoss": centerLoss, "giniBatch": giniBatch, "giniSample": giniSample }
+        return ceLoss + centerLoss + 1e-3 * giniBatch + 1e-3 * giniSample, { "ceLoss": ceLoss, "centerLoss": centerLoss, "giniBatch": giniBatch, "giniSample": giniSample }

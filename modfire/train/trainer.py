@@ -150,7 +150,7 @@ class PalTrainer(Restorable):
                 if self._step > totalBatches:
                     break
 
-        self._afterRun(afterRunHook)
+        self._afterRun(afterRunHook, **datasets)
 
 
     @staticmethod

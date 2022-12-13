@@ -37,5 +37,37 @@ def pairwiseInnerProduct(x: torch.Tensor, optionalY: Optional[torch.Tensor] = No
     # [N1, N2]
     return x @ optionalY.T
 
+def pairwiseEuclidean(x: torch.Tensor, optionalY: Optional[torch.Tensor] = None):
+    if optionalY is None:
+        # [N, N]
+        pairwise = x @ x.T
+        l2 = (x ** 2).sum(-1)
+        distance = l2[..., None] - 2 * pairwise + l2
+        # mask diagonal
+        distance[torch.eye(len(pairwise), dtype=torch.bool, device=pairwise.device)] = -1
+        return distance
+    # [N1, N2]
+    pairwise = x @ optionalY.T
+    x2 = (x ** 2).sum(-1, keepdim=True)
+    y2 = (optionalY ** 2).sum(-1)
+    distance = x2 - 2 * pairwise + y2
+    return distance
+
+def pairwiseCosine(x: torch.Tensor, optionalY: Optional[torch.Tensor] = None):
+    if optionalY is None:
+        # [N, N]
+        pairwise = x @ x.T
+        l2 = (x ** 2).sum(-1)
+        cosine = pairwise / (l2[..., None] * l2).sqrt()
+        # mask diagonal
+        cosine[torch.eye(len(pairwise), dtype=torch.bool, device=pairwise.device)] = -1
+        return cosine
+    # [N1, N2]
+    pairwise = x @ optionalY.T
+    x2 = (x ** 2).sum(-1, keepdim=True)
+    y2 = (optionalY ** 2).sum(-1)
+    cosine = pairwise / (x2 * y2).sqrt()
+    return cosine
+
 class CriterionRegistry(Registry[Callable[..., nn.Module]]):
     pass

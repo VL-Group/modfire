@@ -82,4 +82,4 @@ class PQNet(nn.Module, modfire.train.hooks.StepStartHook):
 
     def forward(self, *, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, **__):
         loss = self._calcLoss(x, q, y)
-        return loss, { "loss": loss }
+        return loss, { }

@@ -112,8 +112,8 @@ def _defaultTrainingDataPipe(*, labels: IterDataPipe, samples: IterDataPipe, map
 
 
 def _selfSupervisedTrainingDataPipe(*, samples: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, nViews: int, **_):
-    return IterableWrapper([None])\
-        .zip_longest(samples)\
+    return samples\
+        .enumerate()\
         .cycle()\
         .shuffle()\
         .sharding_filter()\
