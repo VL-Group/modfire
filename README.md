@@ -23,13 +23,13 @@
     <img src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=000000&color=ffffff" alt="PyTorch"/>
   </a>
   <a href="https://github.com/VL-Group/modfire/stargazers">
-    <img src="https://img.shields.io/github/stars/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=ffffff&color=ffffff" alt="Github stars"/>
+    <img src="https://img.shields.io/github/stars/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff" alt="Github stars"/>
   </a>
   <a href="https://github.com/VL-Group/modfire/network/members">
-    <img src="https://img.shields.io/github/forks/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=ffffff&color=ffffff" alt="Github forks"/>
+    <img src="https://img.shields.io/github/forks/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff" alt="Github forks"/>
   </a>
   <a href="https://github.com/VL-Group/modfire/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=ffffff&color=ffffff" alt="Github license"/>
+    <img src="https://img.shields.io/github/license/VL-Group/modfire?logo=github&style=for-the-badge&logoColor=000000&color=dddddd&labelColor=ffffff" alt="Github license"/>
   </a>
 </p>
 
