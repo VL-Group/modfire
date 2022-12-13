@@ -65,7 +65,7 @@ ModFire is a training, testing, deploying toolkit for modern fast image retrieva
    * [Copyright](#copyright)
 
 <!-- Created by https://github.com/ekalinin/github-markdown-toc -->
-<!-- Added by: runner, at: Tue Dec 13 02:43:46 UTC 2022 -->
+<!-- Added by: runner, at: Tue Dec 13 02:48:19 UTC 2022 -->
 
 <!--te-->
 
