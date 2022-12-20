@@ -4,6 +4,8 @@ from torch import nn, Tensor
 from torchvision.models import get_model, get_model_weights
 from vlutils.base import Registry
 
+from modfire.utils import ValueBase
+
 from .utils import findLastLinear, replaceModule
 from .base import BinaryWrapper, ModelRegistry
 
@@ -33,13 +35,20 @@ class HashRegistry(Registry):
 
 
 class HashLayer(ABC, nn.Module):
+    def __init__(self, temperature: ValueBase):
+        super().__init__()
+        self.temperature = temperature
+
+    def step(self):
+        self.temperature.step()
+
     @abstractmethod
     def trainableHashFunction(self, h: Tensor, *args, **kwargs) -> Tensor:
         raise NotImplementedError
 
     def forward(self, h: Tensor, *args, **kwargs) -> Tensor:
         if self.training:
-            return self.trainableHashFunction(h, *args, **kwargs)
+            return self.trainableHashFunction(h, *args, **kwargs, temperature=self.temperature.Value)
         else:
             return h > 0
 
@@ -69,6 +78,13 @@ class HashModel(BinaryWrapper):
         self._backboneName = backbone
         self._backbone = Backbone(bits, backbone)
         self._hashMethod = HashRegistry.get(hashMethod)(*args, **kwArgs)
+
+    def step(self):
+        self._hashMethod.step()
+
+    @property
+    def Temperature(self) -> float:
+        return self._hashMethod.temperature.Value
 
     def forward(self, x, *args, **kwArgs):
         x = self._backbone(x)

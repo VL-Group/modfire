@@ -16,15 +16,10 @@ class DPQ(nn.Module, modfire.train.hooks.StepStartHook):
     """
         Benjamin Klein, Lior Wolf: End-To-End Supervised Product Quantization for Image Search and Retrieval. CVPR 2019: 5041-5050
     """
-    def __init__(self, d: int, numClasses: int, temperature: float):
+    def __init__(self, d: int, numClasses: int):
         super().__init__()
         self._centers = nn.Parameter(nn.init.kaiming_normal_(torch.empty(numClasses, d)))
         self._finalLayer = nn.Linear(d, numClasses)
-
-        self.temperature = temperature
-
-    def stepStart(self, step: int, epoch: int, trainer, *_, **__):
-        return { "temperature": self.temperature }
 
     def forward(self, *, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, logits: torch.Tensor, **__):
         logits = torch.cat((self._finalLayer(x), self._finalLayer(q)))

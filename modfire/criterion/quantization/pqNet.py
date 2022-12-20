@@ -16,7 +16,7 @@ class PQNet(nn.Module, modfire.train.hooks.StepStartHook):
     """
         Tan Yu, Junsong Yuan, Chen Fang, Hailin Jin: Product Quantization Network for Fast Image Retrieval. ECCV (1) 2018: 191-206
     """
-    def __init__(self, mode: str, d: int, numClasses: int, temperature: float):
+    def __init__(self, mode: str, d: int, numClasses: int):
         super().__init__()
         if mode == "triplet":
             self._calcLoss = self._tripletImpl
@@ -27,11 +27,6 @@ class PQNet(nn.Module, modfire.train.hooks.StepStartHook):
             logger.debug("Use cross-entropy PQNet.")
         else:
             raise ValueError(f"Mode is expected to be one of [\"ce\", \"triplet\"], but got: `{mode}`.")
-
-        self.temperature = temperature
-
-    def stepStart(self, step: int, epoch: int, trainer, *_, **__):
-        return { "temperature": self.temperature }
 
     def _tripletImpl(self, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor):
         # https://gist.github.com/rwightman/fff86a015efddcba8b3c8008167ea705

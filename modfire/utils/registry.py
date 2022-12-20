@@ -17,8 +17,10 @@ from modfire.train.hooks import HookRegistry
 import modfire.train.schedulers
 
 SchdrRegistry = modfire.train.schedulers.SchdrRegistry
+ValueRegistry = modfire.train.values.ValueRegistry
 
 __all__ = [
+    "ValueRegistry",
     "SchdrRegistry",
     "ModelRegistry",
     "CriterionRegistry",

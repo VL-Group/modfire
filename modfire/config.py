@@ -27,6 +27,17 @@ class DatasetSchema(Schema):
     def _(self, data, **kwargs):
         return Dataset(**data)
 
+class ModelSchema(Schema):
+    class Meta:
+        unknown = RAISE
+    key = fields.Str(required=True, description="A unique key used to retrieve in ModelRegistry.")
+    params = fields.Dict(required=False, default={}, description="Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.")
+    temperature = fields.Nested(GeneralSchema(), required=False, description="A spec of temperature tuning schdeduler.")
+
+    @post_load
+    def _(self, data, **kwargs):
+        return Model(**data)
+
 # Ununsed, unless you want ddp training
 class GPUSchema(Schema):
     class Meta:
@@ -136,6 +147,24 @@ class GPU:
         return self.wantsMore
 
 @dataclass
+class Model:
+    key: str
+    params: Dict[str, Any]
+    temperature: General
+
+    @property
+    def Key(self) -> str:
+        return self.key
+
+    @property
+    def Params(self) -> Dict[str, Any]:
+        return self.params
+
+    @property
+    def Temperature(self) -> General:
+        return self.temperature
+
+@dataclass
 class Train:
     epoch: int
     valFreq: int
@@ -221,7 +250,7 @@ class Train:
 @dataclass
 class Config:
     summary: str
-    model: General
+    model: Model
     train: Train
 
     @property
@@ -229,7 +258,7 @@ class Config:
         return self.summary
 
     @property
-    def Model(self) -> General:
+    def Model(self) -> Model:
         return self.model
 
     @property

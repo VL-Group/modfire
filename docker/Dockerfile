@@ -6,7 +6,7 @@ RUN conda install -y "tensorboard<3" "rich<11" "python-lmdb<2" "pyyaml<7" "marsh
 
 WORKDIR /workspace
 
-RUN git clone https://github.com/xiaosu-zhu/modfire.git && cd modfire && PYPI_BUILDING="SET" ADD_ENTRY="SET" pip install -e .
+RUN git clone https://github.com/VL-Group/modfire.git && cd modfire && PYPI_BUILDING="SET" ADD_ENTRY="SET" pip install -e .
 
 RUN sed -i "1 s|$| -O|" "$(which modfire)"*
 

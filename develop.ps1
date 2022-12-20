@@ -32,7 +32,7 @@ if (Check-Command -cmdname 'conda')
         exit 1
     }
 
-    conda install -y -n modfire "tensorboard<3" "rich<11" "python-lmdb<2" "pyyaml<7" "marshmallow<4" "click<9" "msgpack-python<2" packaging -c conda-forge
+    conda install -y -n modfire "tensorboard<3" "rich<11" "python-lmdb<2" "pyyaml<7" "marshmallow<4" "click<9" "msgpack-python<2" "scipy<2" packaging -c conda-forge
 
 
     $env:ADD_ENTRY = "SET"

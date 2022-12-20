@@ -1,4 +1,4 @@
-# $schema: "https://raw.githubusercontent.com/xiaosu-zhu/modfire/main/configs/schema.json"
+# $schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/test-schema.json"
 numReturns: -1
 querySet:
   key: CIFAR10

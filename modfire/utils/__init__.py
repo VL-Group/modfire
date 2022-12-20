@@ -14,6 +14,7 @@ from io import IOBase, RawIOBase
 from vlutils.logger import LoggerBase
 from vlutils.custom import RichProgress
 from vlutils.saver import StrPath
+from vlutils.base import Restorable
 from torch import nn
 from rich import filesize
 from rich.progress import Progress
@@ -174,3 +175,23 @@ class SafeTerminate(abc.ABC):
     @abc.abstractmethod
     def onTerminate(self, signum, frame):
         raise NotImplementedError
+
+
+class ValueBase(Restorable):
+    _value: float
+    def __init__(self, initValue: float):
+        super().__init__()
+        self._epoch = 0
+        self._initValue = initValue
+        self._value = self.calc()
+
+    def step(self):
+        self._epoch += 1
+        self._value = self.calc()
+
+    def calc(self):
+        return self._initValue
+
+    @property
+    def Value(self) -> float:
+        return self._value

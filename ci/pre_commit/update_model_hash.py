@@ -25,7 +25,7 @@ for i, line in enumerate(lines):
 
 MODELS_HASH = dict()
 
-response = requests.get("https://api.github.com/repos/xiaosu-zhu/modfire/releases/tags/generic", headers={"Accept":"application/vnd.github.v3+json"}).json()
+response = requests.get("https://api.github.com/repos/VL-Group/modfire/releases/tags/generic", headers={"Accept":"application/vnd.github.v3+json"}).json()
 assets = response["assets"]
 
 

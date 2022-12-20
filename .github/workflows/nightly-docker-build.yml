@@ -58,7 +58,7 @@ jobs:
     needs: [check-today-has-commit-and-build-docker]
     if: ${{ needs.check-today-has-commit-and-build-docker.outputs.check-result == 'true' }}
     runs-on: ubuntu-latest
-    container: ghcr.io/xiaosu-zhu/modfire:nightly
+    container: ghcr.io/VL-Group/modfire:nightly
     steps:
       - run: |
           modfire --help

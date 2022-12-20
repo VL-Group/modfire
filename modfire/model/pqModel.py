@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from torchvision.models import get_model, get_model_weights
 from vlutils.base import Registry
 
+from modfire.utils import ValueBase
+
 from .utils import findLastLinear, replaceModule
 from .base import PQWrapper, ModelRegistry
 
@@ -55,10 +57,14 @@ class PQRegistry(Registry):
 
 class PQLayer(ABC, nn.Module):
     codebook: nn.Parameter
-    def __init__(self, codebook: nn.Parameter):
+    def __init__(self, codebook: nn.Parameter, temperature: ValueBase):
         super().__init__()
         self.codebook = codebook
         self._m, self._k, self._d_m = codebook.shape
+        self.temperature = temperature
+
+    def step(self):
+        self.temperature.step()
 
     # NOTE: ALREADY CHECKED CONSISTENCY WITH NAIVE IMPL.
     def _distance(self, x: torch.Tensor) -> torch.Tensor:
@@ -84,7 +90,7 @@ class PQLayer(ABC, nn.Module):
     def forward(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor, Tensor]:
         if self.training:
             # NOTE: Due to the asymmertric distance computation, we need to return x and q simultaneously for training.
-            return self.trainablePQFunction(x, *args, **kwargs)
+            return self.trainablePQFunction(x, *args, **kwargs, temperature=self.temperature.Value)
         else:
             # ** IMPORTANT **: The real quantization happens on the inner PQDatabase in PQModel during indexing.
             raise NotImplementedError
@@ -126,8 +132,8 @@ class HardPQ(PQLayer):
 
 @PQRegistry.register
 class GumbelPQ(PQLayer):
-    def __init__(self, codebook: nn.Parameter):
-        super().__init__(codebook)
+    def __init__(self, codebook: nn.Parameter, temperature: ValueBase):
+        super().__init__(codebook, temperature)
         self._temperature = nn.Parameter(torch.ones((self._m, 1)))
 
     def trainablePQFunction(self, x: Tensor, temperature: float = 1.0) -> Tuple[Tensor, Tensor, Tensor]:
@@ -146,10 +152,17 @@ class PQModel(PQWrapper):
         self._backbone = Backbone(m, d, intraNormalization, backbone)
         self._pqMethod = PQRegistry.get(pqMethod)(self.codebook, *args, **kwArgs)
 
+    def step(self):
+        self._pqMethod.step()
+
+    @property
+    def Temperature(self) -> float:
+        return self._pqMethod.temperature.Value
+
     def forward(self, x, *args, **kwArgs):
         x = self._backbone(x)
         x, q, l = self._pqMethod(x, *args, **kwArgs)
-        return { "x": x, "q": q, "logits": l }
+        return { "x": x, "q": q, "logits": l, "codebook": self.codebook }
 
     def encode(self, image: Tensor):
         # ** IMPORTANT **: Use database to encode, not here

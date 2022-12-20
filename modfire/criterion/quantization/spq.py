@@ -16,19 +16,15 @@ class SPQ(nn.Module, modfire.train.hooks.StepStartHook):
     """
         Young Kyun Jang, Nam Ik Cho: Self-supervised Product Quantization for Deep Unsupervised Image Retrieval. ICCV 2021: 12065-12074
     """
-    def __init__(self, d: int, temperature: float, tContrastive: float):
+    def __init__(self, d: int, temperature: float):
         super().__init__()
         self.d = d
         self.temperature = temperature
-        self.tContrastive = tContrastive
-
-    def stepStart(self, step: int, epoch: int, trainer, *_, **__):
-        return { "temperature": self.temperature }
 
     def forward(self, *, x: torch.Tensor, q: torch.Tensor, y: torch.Tensor, **__):
         # [N, N]
         # [Xa, Xb] vs [Za, Zb]
-        logits = pairwiseCosine(x, q) / self.tContrastive
+        logits = pairwiseCosine(x, q) / self.temperature
         mask = ~torch.eye(len(logits), dtype=torch.bool, device=logits.device)
         # erase diagnoal
         # [N, N - 1]

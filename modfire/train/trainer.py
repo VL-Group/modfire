@@ -22,7 +22,7 @@ from vlutils.runtime import relativePath
 from vlutils.config import summary
 
 import modfire.utils.registry
-from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry, DataPipeRegistry
+from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry, DataPipeRegistry, ValueRegistry
 from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
@@ -211,7 +211,10 @@ class PalTrainer(Restorable):
     def _createModel(rank: int, config: Config, saver: Saver) -> DistributedDataParallel:
         saver.debug("Creating model...")
         modelFn = trackingFunctionCalls(ModelRegistry.get(config.Model.Key), saver)
-        model = modelFn(**config.Model.Params)
+
+        value = trackingFunctionCalls(ValueRegistry.get(config.Model.Temperature.Key), saver)(**config.Model.Temperature.Params)
+
+        model = modelFn(**config.Model.Params, temperature=value)
 
         # EMA model for evaluation
         # deepcopy can't handle faiss objects. reject.
@@ -319,7 +322,9 @@ class PalTrainer(Restorable):
             raise StopIteration
 
         self._scheduler.step()
+        self._model.module.step()
         self.saver.debug("Lr is set to %.2e.", self._scheduler.get_last_lr()[0])
+        self.saver.debug("Temperature is set to %.2e.", self._model.module.Temperature)
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
         self.saver.debug("End call `_epochFinish()`.")
