@@ -35,9 +35,9 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
         # [n, bits]
         return ((y @ self.centroids) > (y.sum(-1, keepdim=True) / 2)).float()
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, *_):
-        centerLoss = F.binary_cross_entropy_with_logits(x, self.meanOfCode(y))
-        quantizationError = F.mse_loss(x.tanh(), x.sign())
+    def forward(self, *, z: torch.Tensor, y: torch.Tensor, **_):
+        centerLoss = F.binary_cross_entropy_with_logits(z, self.meanOfCode(y))
+        quantizationError = F.mse_loss(z.tanh(), z.sign())
         return centerLoss + quantizationError, { "centerLoss": centerLoss, "qError": quantizationError }
 
     @staticmethod

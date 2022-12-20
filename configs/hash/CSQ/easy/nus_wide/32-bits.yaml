@@ -6,6 +6,10 @@ model:
     bits: 32
     backbone: resnet50
     hashMethod: LogitHash
+  temperature:
+    key: Constant
+    params:
+      initValue: 1.0
 train:
   earlyStop: 3
   epoch: 500

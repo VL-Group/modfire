@@ -91,8 +91,8 @@ class HashModel(BinaryWrapper):
         return { "z": self._hashMethod(x, *args, **kwArgs) }
 
     def encode(self, image: Tensor):
-        h = self(image)
-        return self.boolToByte(h)
+        x = self._backbone(image)
+        return self.boolToByte(x > 0)
 
     def summary(self) -> str:
         return "_".join(map(str, [self.Type, self._backboneName, self.bits]))

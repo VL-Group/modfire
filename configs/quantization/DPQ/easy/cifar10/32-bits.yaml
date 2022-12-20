@@ -10,6 +10,10 @@ model:
     intraNormalization: true
     backbone: resnet50
     pqMethod: SoftPQ
+  temperature:
+    key: Constant
+    params:
+      initValue: 0.1
 train:
   earlyStop: 10
   epoch: 500
@@ -40,7 +44,6 @@ train:
     params:
       d: 256
       numClasses: 10
-      temperature: 0.1 # 1/10
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py

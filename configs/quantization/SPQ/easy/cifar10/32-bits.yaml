@@ -10,6 +10,10 @@ model:
     intraNormalization: false
     backbone: resnet50
     pqMethod: SoftPQ
+  temperature:
+    key: Constant
+    params:
+      initValue: 0.1
 train:
   earlyStop: 100
   epoch: 10000
@@ -43,8 +47,7 @@ train:
     key: SPQ
     params:
       d: 256
-      temperature: 0.1 # 1/10
-      tContrastive: 0.5
+      temperature: 0.5 # contrastive loss
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py

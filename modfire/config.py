@@ -77,7 +77,7 @@ class ConfigSchema(Schema):
     class Meta:
         unknown = RAISE
     summary = fields.Str(required=True, description="The overall summary to describe method, bits, training set, etc. Strict format: `{bits}bits_{model_type}_{method}_{backbone}_{trainset}_{optional_comments}`. `model_type` can be found in `modfire.model.base`.")
-    model = fields.Nested(GeneralSchema(), required=True, description="Model to use. Avaliable params are e.g. `backbone`, `bits` and `hashMethod`.")
+    model = fields.Nested(ModelSchema(), required=True, description="Model to use. Avaliable params are e.g. `backbone`, `bits` and `hashMethod`.")
     train = fields.Nested(TrainSchema(), required=True, description="Training configs.")
 
     @post_load

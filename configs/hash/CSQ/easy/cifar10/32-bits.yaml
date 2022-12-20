@@ -6,6 +6,10 @@ model:
     bits: 32
     backbone: resnet50
     hashMethod: LogitHash
+  temperature:
+    key: Constant
+    params:
+      initValue: 1.0
 train:
   earlyStop: 3
   epoch: 500
@@ -48,7 +52,7 @@ train:
   schdr:
     key: CosineAnnealingLR
     params:
-      T_max: 100
+      T_max: 500
   gpu:
     gpus: 1
     vRam: -1

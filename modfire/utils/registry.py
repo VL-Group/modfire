@@ -15,6 +15,7 @@ from modfire.model import ModelRegistry
 from modfire.criterion import CriterionRegistry
 from modfire.train.hooks import HookRegistry
 import modfire.train.schedulers
+import modfire.train.values
 
 SchdrRegistry = modfire.train.schedulers.SchdrRegistry
 ValueRegistry = modfire.train.values.ValueRegistry
