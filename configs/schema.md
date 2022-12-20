@@ -4,6 +4,10 @@
   - [1.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_key)
   - [1.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_params)
     - [1.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_params_additionalProperties)
+  - [1.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `temperature`](#model_temperature)
+    - [1.3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_temperature_key)
+    - [1.3.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_temperature_params)
+      - [1.3.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_temperature_params_additionalProperties)
 - [2. ![Required](https://img.shields.io/badge/Required-blue) Property `summary`](#summary)
 - [3. ![Required](https://img.shields.io/badge/Required-blue) Property `train`](#train)
   - [3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `criterion`](#train_criterion)
@@ -37,11 +41,11 @@
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
 | **Defined in**            | #/definitions/ConfigSchema                                                                               |
 
-| Property               | Pattern | Type   | Deprecated | Definition                     | Title/Description                                                                  |
-| ---------------------- | ------- | ------ | ---------- | ------------------------------ | ---------------------------------------------------------------------------------- |
-| + [model](#model )     | No      | object | No         | In #/definitions/GeneralSchema | Model to use. Avaliable params are e.g. \`backbone\`, \`bits\` and \`hashMethod\`. |
-| + [summary](#summary ) | No      | string | No         | -                              | summary                                                                            |
-| + [train](#train )     | No      | object | No         | In #/definitions/TrainSchema   | Training configs.                                                                  |
+| Property               | Pattern | Type   | Deprecated | Definition                   | Title/Description                                                                  |
+| ---------------------- | ------- | ------ | ---------- | ---------------------------- | ---------------------------------------------------------------------------------- |
+| + [model](#model )     | No      | object | No         | In #/definitions/ModelSchema | Model to use. Avaliable params are e.g. \`backbone\`, \`bits\` and \`hashMethod\`. |
+| + [summary](#summary ) | No      | string | No         | -                            | summary                                                                            |
+| + [train](#train )     | No      | object | No         | In #/definitions/TrainSchema | Training configs.                                                                  |
 
 ## <a name="model"></a>1. ![Required](https://img.shields.io/badge/Required-blue) Property `model`
 
@@ -49,25 +53,25 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Defined in**            | #/definitions/GeneralSchema                                                                              |
+| **Defined in**            | #/definitions/ModelSchema                                                                                |
 
 **Description:** Model to use. Avaliable params are e.g. `backbone`, `bits` and `hashMethod`.
 
-| Property                   | Pattern | Type   | Deprecated | Definition | Title/Description |
-| -------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
-| + [key](#model_key )       | No      | string | No         | -          | key               |
-| - [params](#model_params ) | No      | object | No         | -          | params            |
+| Property                             | Pattern | Type   | Deprecated | Definition                     | Title/Description                        |
+| ------------------------------------ | ------- | ------ | ---------- | ------------------------------ | ---------------------------------------- |
+| + [key](#model_key )                 | No      | string | No         | -                              | key                                      |
+| - [params](#model_params )           | No      | object | No         | -                              | params                                   |
+| - [temperature](#model_temperature ) | No      | object | No         | In #/definitions/GeneralSchema | A spec of temperature tuning schdeduler. |
 
 ### <a name="model_key"></a>1.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
 
 **Title:** key
 
-|             |          |
-| ----------- | -------- |
-| **Type**    | `string` |
-| **Default** | `null`   |
+|          |          |
+| -------- | -------- |
+| **Type** | `string` |
 
-**Description:** A unique key used to retrieve in registry. For example, given `Lamb` for optimizers, it will check `OptimRegistry` and find the optimizer `apex.optim.FusedLAMB`.
+**Description:** A unique key used to retrieve in ModelRegistry.
 
 ### <a name="model_params"></a>1.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
 
@@ -86,6 +90,55 @@
 | - [additionalProperties](#model_params_additionalProperties ) | No      | object | No         | -          | -                 |
 
 #### <a name="model_params_additionalProperties"></a>1.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
+
+|                           |                                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Type**                  | `object`                                                                                                                          |
+| **Additional properties** | [![Any type: allowed](https://img.shields.io/badge/Any%20type-allowed-green)](# "Additional Properties of any type are allowed.") |
+
+### <a name="model_temperature"></a>1.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `temperature`
+
+|                           |                                                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Type**                  | `object`                                                                                                 |
+| **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
+| **Defined in**            | #/definitions/GeneralSchema                                                                              |
+
+**Description:** A spec of temperature tuning schdeduler.
+
+| Property                               | Pattern | Type   | Deprecated | Definition | Title/Description |
+| -------------------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
+| + [key](#model_temperature_key )       | No      | string | No         | -          | key               |
+| - [params](#model_temperature_params ) | No      | object | No         | -          | params            |
+
+#### <a name="model_temperature_key"></a>1.3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
+
+**Title:** key
+
+|             |          |
+| ----------- | -------- |
+| **Type**    | `string` |
+| **Default** | `null`   |
+
+**Description:** A unique key used to retrieve in registry. For example, given `Lamb` for optimizers, it will check `OptimRegistry` and find the optimizer `apex.optim.FusedLAMB`.
+
+#### <a name="model_temperature_params"></a>1.3.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
+
+**Title:** params
+
+|                           |                                                                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Type**                  | `object`                                                                                                                                                                              |
+| **Additional properties** | [![Should-conform](https://img.shields.io/badge/Should-conform-blue)](#model_temperature_params_additionalProperties "Each additional property must conform to the following schema") |
+| **Default**               | `{}`                                                                                                                                                                                  |
+
+**Description:** Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.
+
+| Property                                                                  | Pattern | Type   | Deprecated | Definition | Title/Description |
+| ------------------------------------------------------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
+| - [additionalProperties](#model_temperature_params_additionalProperties ) | No      | object | No         | -          | -                 |
+
+##### <a name="model_temperature_params_additionalProperties"></a>1.3.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
 
 |                           |                                                                                                                                   |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -112,23 +165,23 @@
 
 **Description:** Training configs.
 
-| Property                             | Pattern | Type                    | Deprecated | Definition                           | Title/Description                                                                                                                                                                                   |
-| ------------------------------------ | ------- | ----------------------- | ---------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| + [criterion](#train_criterion )     | No      | object                  | No         | Same as [model](#model )             | Loss function used for training.                                                                                                                                                                    |
-| + [database](#train_database )       | No      | object                  | No         | In #/definitions/DatasetSchema       | A spec to load images per line for evalution database.                                                                                                                                              |
-| + [earlyStop](#train_earlyStop )     | No      | integer                 | No         | -                                    | earlyStop                                                                                                                                                                                           |
-| + [epoch](#train_epoch )             | No      | integer                 | No         | -                                    | epoch                                                                                                                                                                                               |
-| - [externalLib](#train_externalLib ) | No      | array of string or null | No         | -                                    | externalLib                                                                                                                                                                                         |
-| + [gpu](#train_gpu )                 | No      | object                  | No         | In #/definitions/GPUSchema           | GPU configs for training.                                                                                                                                                                           |
-| - [hooks](#train_hooks )             | No      | array of object or null | No         | -                                    | hooks                                                                                                                                                                                               |
-| + [numReturns](#train_numReturns )   | No      | integer                 | No         | -                                    | numReturns                                                                                                                                                                                          |
-| + [optim](#train_optim )             | No      | object                  | No         | Same as [model](#model )             | Optimizer used for training. As for current we have \`Adam\` and \`Lamb\`.                                                                                                                          |
-| + [querySet](#train_querySet )       | No      | object                  | No         | Same as [database](#train_database ) | A spec to load images per line for evalution query.                                                                                                                                                 |
-| + [saveDir](#train_saveDir )         | No      | string                  | No         | -                                    | saveDir                                                                                                                                                                                             |
-| + [schdr](#train_schdr )             | No      | object                  | No         | Same as [model](#model )             | Learning rate scheduler used for training. As for current we have \`ReduceLROnPlateau\`, \`Exponential\`, \`MultiStep\`, \`OneCycle\` and all schedulers defined in \`modfire.train.lrSchedulers\`. |
-| + [trainSet](#train_trainSet )       | No      | object                  | No         | Same as [database](#train_database ) | A spec to load images per line for training.                                                                                                                                                        |
-| - [trainer](#train_trainer )         | No      | string                  | No         | -                                    | trainer                                                                                                                                                                                             |
-| + [valFreq](#train_valFreq )         | No      | integer                 | No         | -                                    | valFreq                                                                                                                                                                                             |
+| Property                             | Pattern | Type                    | Deprecated | Definition                                 | Title/Description                                                                                                                                                                                   |
+| ------------------------------------ | ------- | ----------------------- | ---------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| + [criterion](#train_criterion )     | No      | object                  | No         | Same as [temperature](#model_temperature ) | Loss function used for training.                                                                                                                                                                    |
+| + [database](#train_database )       | No      | object                  | No         | In #/definitions/DatasetSchema             | A spec to load images per line for evalution database.                                                                                                                                              |
+| + [earlyStop](#train_earlyStop )     | No      | integer                 | No         | -                                          | earlyStop                                                                                                                                                                                           |
+| + [epoch](#train_epoch )             | No      | integer                 | No         | -                                          | epoch                                                                                                                                                                                               |
+| - [externalLib](#train_externalLib ) | No      | array of string or null | No         | -                                          | externalLib                                                                                                                                                                                         |
+| + [gpu](#train_gpu )                 | No      | object                  | No         | In #/definitions/GPUSchema                 | GPU configs for training.                                                                                                                                                                           |
+| - [hooks](#train_hooks )             | No      | array of object or null | No         | -                                          | hooks                                                                                                                                                                                               |
+| + [numReturns](#train_numReturns )   | No      | integer                 | No         | -                                          | numReturns                                                                                                                                                                                          |
+| + [optim](#train_optim )             | No      | object                  | No         | Same as [temperature](#model_temperature ) | Optimizer used for training. As for current we have \`Adam\` and \`Lamb\`.                                                                                                                          |
+| + [querySet](#train_querySet )       | No      | object                  | No         | Same as [database](#train_database )       | A spec to load images per line for evalution query.                                                                                                                                                 |
+| + [saveDir](#train_saveDir )         | No      | string                  | No         | -                                          | saveDir                                                                                                                                                                                             |
+| + [schdr](#train_schdr )             | No      | object                  | No         | Same as [temperature](#model_temperature ) | Learning rate scheduler used for training. As for current we have \`ReduceLROnPlateau\`, \`Exponential\`, \`MultiStep\`, \`OneCycle\` and all schedulers defined in \`modfire.train.lrSchedulers\`. |
+| + [trainSet](#train_trainSet )       | No      | object                  | No         | Same as [database](#train_database )       | A spec to load images per line for training.                                                                                                                                                        |
+| - [trainer](#train_trainer )         | No      | string                  | No         | -                                          | trainer                                                                                                                                                                                             |
+| + [valFreq](#train_valFreq )         | No      | integer                 | No         | -                                          | valFreq                                                                                                                                                                                             |
 
 ### <a name="train_criterion"></a>3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `criterion`
 
@@ -136,7 +189,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [temperature](#model_temperature)                                                                        |
 
 **Description:** Loss function used for training.
 
@@ -150,11 +203,11 @@
 
 **Description:** A spec to load images per line for evalution database.
 
-| Property                                | Pattern | Type   | Deprecated | Definition               | Title/Description                |
-| --------------------------------------- | ------- | ------ | ---------- | ------------------------ | -------------------------------- |
-| + [key](#train_database_key )           | No      | string | No         | -                        | key                              |
-| - [params](#train_database_params )     | No      | object | No         | -                        | params                           |
-| - [pipeline](#train_database_pipeline ) | No      | object | No         | Same as [model](#model ) | A spec of data loading pipeline. |
+| Property                                | Pattern | Type   | Deprecated | Definition                                 | Title/Description                |
+| --------------------------------------- | ------- | ------ | ---------- | ------------------------------------------ | -------------------------------- |
+| + [key](#train_database_key )           | No      | string | No         | -                                          | key                              |
+| - [params](#train_database_params )     | No      | object | No         | -                                          | params                           |
+| - [pipeline](#train_database_pipeline ) | No      | object | No         | Same as [temperature](#model_temperature ) | A spec of data loading pipeline. |
 
 #### <a name="train_database_key"></a>3.2.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
 
@@ -195,7 +248,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [temperature](#model_temperature)                                                                        |
 
 **Description:** A spec of data loading pipeline.
 
@@ -337,7 +390,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [temperature](#model_temperature)                                                                        |
 
 ### <a name="train_numReturns"></a>3.8. ![Required](https://img.shields.io/badge/Required-blue) Property `numReturns`
 
@@ -359,7 +412,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [temperature](#model_temperature)                                                                        |
 
 **Description:** Optimizer used for training. As for current we have `Adam` and `Lamb`.
 
@@ -389,7 +442,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                 |
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
-| **Same definition as**    | [model](#model)                                                                                          |
+| **Same definition as**    | [temperature](#model_temperature)                                                                        |
 
 **Description:** Learning rate scheduler used for training. As for current we have `ReduceLROnPlateau`, `Exponential`, `MultiStep`, `OneCycle` and all schedulers defined in `modfire.train.lrSchedulers`.
 
