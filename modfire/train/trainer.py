@@ -368,8 +368,8 @@ class MainTrainer(PalTrainer, SafeTerminate):
         super()._beforeRun(hook, *args, **kwArgs)
 
     def _afterRun(self, hook, *args, **kwArgs):
-        self.progress.__exit__(None, None, None)
         super()._afterRun(hook, *args, **kwArgs)
+        self.progress.__exit__(None, None, None)
         self.summary()
 
     def _stepFinish(self, hook, *args, loss, stats, **kwArgs):
@@ -409,14 +409,12 @@ class MainTrainer(PalTrainer, SafeTerminate):
 
         saver.debug("Add additional hooks in `MainTrainer`.")
 
-        afterRunHook = checkHook(ChainHook(self.validate, afterRunHook), "AfterRunHook", saver)
-        epochStartHook = checkHook(ChainHook(
-            EpochFrequencyHook(
-                (config.Train.ValFreq, self.validate), logger=saver
-            ), epochStartHook), "EpochStartHook", saver)
         epochFinishHook = checkHook(ChainHook(
             EpochFrequencyHook(
                 (1, self.log), logger=saver
+            ),
+            EpochFrequencyHook(
+                (config.Train.ValFreq, self.validate), logger=saver
             ), epochFinishHook), "EpochFinishHook", saver)
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 

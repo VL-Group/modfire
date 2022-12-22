@@ -37,7 +37,7 @@ def pairwiseInnerProduct(x: torch.Tensor, optionalY: Optional[torch.Tensor] = No
     # [N1, N2]
     return x @ optionalY.T
 
-def pairwiseEuclidean(x: torch.Tensor, optionalY: Optional[torch.Tensor] = None):
+def pairwiseSquare(x: torch.Tensor, optionalY: Optional[torch.Tensor] = None):
     if optionalY is None:
         # [N, N]
         pairwise = x @ x.T

@@ -87,12 +87,12 @@ class HashModel(BinaryWrapper):
         return self._hashMethod.temperature.Value
 
     def forward(self, x, *args, **kwArgs):
-        x = self._backbone(x)
-        return { "z": self._hashMethod(x, *args, **kwArgs) }
+        z = self._backbone(x)
+        return { "z": z, "b": self._hashMethod(x, *args, **kwArgs) }
 
     def encode(self, image: Tensor):
-        x = self._backbone(image)
-        return self.boolToByte(x > 0)
+        z = self._backbone(image)
+        return self.boolToByte(z > 0)
 
     def summary(self) -> str:
         return "_".join(map(str, [self.Type, self._backboneName, self.bits]))

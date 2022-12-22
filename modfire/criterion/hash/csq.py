@@ -35,9 +35,9 @@ class CSQ(nn.Module, modfire.train.hooks.BeforeRunHook):
         # [n, bits]
         return ((y @ self.centroids) > (y.sum(-1, keepdim=True) / 2)).float()
 
-    def forward(self, *, z: torch.Tensor, y: torch.Tensor, **_):
+    def forward(self, *, z: torch.Tensor, b: torch.Tensor, y: torch.Tensor, **_):
         centerLoss = F.binary_cross_entropy_with_logits(z, self.meanOfCode(y))
-        quantizationError = F.mse_loss(z.tanh(), z.sign())
+        quantizationError = F.mse_loss(b, b.sign())
         return centerLoss + quantizationError, { "centerLoss": centerLoss, "qError": quantizationError }
 
     @staticmethod
@@ -169,9 +169,9 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             logger.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
 
-    def forward(self, *, z: torch.Tensor, y: torch.Tensor, **_):
+    def forward(self, *, b: torch.Tensor, y: torch.Tensor, **_):
         # X are permuted on last dim according to permIdx
-        z = z[:, self.permIdx]
+        z = b[:, self.permIdx]
 
         originalX = z.clone().detach()
         # [N, M * 256]

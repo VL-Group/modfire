@@ -113,4 +113,6 @@ class MeCoQ(nn.Module, modfire.train.hooks.StepStartHook, modfire.train.hooks.Af
         logitsReg = (- logits * logits.log()).sum(dim=-1).mean()
         codebookReg = torch.einsum('mkd,mjd->mkj', codebook, codebook).mean()
 
-        return loss, { }
+        loss = contrastive + self._lambda * logitsReg + self.gamma * codebookReg
+
+        return loss, { "contrastive": contrastive, "logits_reg": logitsReg, "codebook_reg": codebookReg }

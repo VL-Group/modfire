@@ -84,6 +84,6 @@ class DAPH(nn.Module, modfire.train.hooks.EpochStartHook, modfire.train.hooks.Ep
 
 
 
-    def forward(self, *, z: torch.Tensor, y: torch.Tensor, idx: torch.Tensor, **_):
-        loss = (z - self.H[idx]).pow(2).mean()
+    def forward(self, *, b: torch.Tensor, y: torch.Tensor, idx: torch.Tensor, **_):
+        loss = (b - self.H[idx]).pow(2).mean()
         return loss

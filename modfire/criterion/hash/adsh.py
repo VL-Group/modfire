@@ -32,7 +32,7 @@ class ADSH(nn.Module):
         S = S * (1 + r) - r
         return S
 
-    def forward(self, *, z: torch.Tensor, y: torch.Tensor, **_):
+    def forward(self, *, b: torch.Tensor, y: torch.Tensor, **_):
         raise NotImplementedError("Method not implemented.")
         S = self.calcSim(y, self.databaseLabel)
         softSigned = z.tanh()
