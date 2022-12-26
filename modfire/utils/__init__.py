@@ -10,12 +10,14 @@ import threading
 import abc
 import io
 from io import IOBase, RawIOBase
+import math
 
 from vlutils.logger import LoggerBase
 from vlutils.custom import RichProgress
 from vlutils.saver import StrPath
 from vlutils.base import Restorable
 from torch import nn
+import torch
 from rich import filesize
 from rich.progress import Progress
 from rich.progress import TimeElapsedColumn, BarColumn, TimeRemainingColumn
@@ -195,3 +197,53 @@ class ValueBase(Restorable):
     @property
     def Value(self) -> float:
         return self._value
+
+
+class ConcatTensor(nn.Module):
+    _buffer: torch.Tensor
+    _DEFAULT_INCREASE = 2048
+    def __init__(self, dim: int = 0):
+        super().__init__()
+        self._dim = dim
+        self.register_buffer("_buffer", torch.empty([]))
+        self._length = -1
+
+    def reset(self):
+        self._length = -1
+        self._buffer = torch.empty([], device = self._buffer.device)
+
+    def seek(self, idx: int):
+        self._length = idx + 1
+
+    @property
+    def Value(self) -> torch.Tensor:
+        return self._buffer.index_select(self._dim, torch.arange(self._length))
+
+    @torch.no_grad()
+    def forward(self, x: torch.Tensor):
+        if self._length < 0:
+            shape = list(x.shape)
+            shape[self._dim] = math.ceil(x.shape[self._dim] / float(self._DEFAULT_INCREASE)) * self._DEFAULT_INCREASE
+
+            self._buffer = torch.empty(shape, dtype=x.dtype, device=self._buffer.device, pin_memory=True)
+
+            # [1, ..., 1, dim, 1, ..., 1]
+            idxShape = [x if i == self._dim else 1 for i, x in enumerate(x.shape)]
+            # same shape as x
+            idx = torch.arange(0, x.shape[self._dim]).view(idxShape).expand_as(x)
+            self._buffer.scatter_(self._dim, idx, x)
+            # pointer at end of sequence
+            self._length = x.shape[self._dim]
+        else:
+            if x.shape[self._dim] + self._length >= self._buffer.shape[self._dim]:
+                # increase size
+                shape = list(x.shape)
+                shape[self._dim] = math.ceil(x.shape[self._dim] / float(self._DEFAULT_INCREASE)) * self._DEFAULT_INCREASE
+                self._buffer = torch.cat([self._buffer.detach().clone(), torch.empty(shape, dtype=x.dtype, device=self._buffer.device, pin_memory=True)], dim=self._dim)
+
+            # [1, ..., 1, dim, 1, ..., 1]
+            idxShape = [x if i == self._dim else 1 for i, x in enumerate(x.shape)]
+            # same shape as x
+            idx = torch.arange(self._length, self._length + x.shape[self._dim]).view(idxShape).expand_as(x)
+            self._buffer.scatter_(self._dim, idx, x)
+            self._length += x.shape[self._dim]

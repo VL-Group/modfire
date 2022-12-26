@@ -14,7 +14,7 @@ from ..utils import pairwiseInnerProduct, CriterionRegistry, pariwiseAffinity
 logger = logging.getLogger(Consts.Root)
 
 @CriterionRegistry.register
-class DPSH(nn.Module, modfire.train.hooks.BeforeRunHook):
+class DPSH(nn.Module):
     """
         Wu-Jun Li, Sheng Wang, Wang-Cheng Kang: Feature Learning Based Deep Supervised Hashing with Pairwise Labels. IJCAI 2016: 1711-1717
     """

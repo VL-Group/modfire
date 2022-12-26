@@ -14,7 +14,7 @@ from ..utils import pairwiseSquare, CriterionRegistry, pariwiseAffinity
 logger = logging.getLogger(Consts.Root)
 
 @CriterionRegistry.register
-class DSH(nn.Module, modfire.train.hooks.BeforeRunHook):
+class DSH(nn.Module):
     """
         Haomiao Liu, Ruiping Wang, Shiguang Shan, Xilin Chen: Deep Supervised Hashing for Fast Image Retrieval. CVPR 2016: 2064-2072
     """

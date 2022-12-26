@@ -32,8 +32,18 @@ def entryPoint():
 
 
 @entryPoint.command(default=True)
-def defaultEntry():
-    pass
+@click.option("-T", "--test", is_flag=True, help="Set logging level to DEBUG to print verbose messages.")
+def defaultEntry(test):
+    from modfire.utils import ConcatTensor
+    test = ConcatTensor()
+    a = torch.zeros(ConcatTensor._DEFAULT_INCREASE, 3)
+    test(a)
+    print(test.Value)
+    print(test.Value.shape)
+    b = torch.ones(ConcatTensor._DEFAULT_INCREASE + 2, 3)
+    test(b)
+    print(test.Value[ConcatTensor._DEFAULT_INCREASE-1:])
+    print(test.Value.shape)
 
 
 @entryPoint.command()

@@ -14,7 +14,7 @@ from ..utils import pairwiseInnerProduct, CriterionRegistry, pariwiseAffinity
 logger = logging.getLogger(Consts.Root)
 
 @CriterionRegistry.register
-class DHN(nn.Module, modfire.train.hooks.BeforeRunHook):
+class DHN(nn.Module):
     """
         Han Zhu, Mingsheng Long, Jianmin Wang, Yue Cao: Deep Hashing Network for Efficient Similarity Retrieval. AAAI 2016: 2415-2421
     """
