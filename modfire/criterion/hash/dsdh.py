@@ -54,7 +54,7 @@ class DSDH(nn.Module, modfire.train.hooks.EpochStartHook):
 
         likelihoodLoss = ((1 + (-(similarity.abs())).exp()).log() + similarity.clamp_min(0) - affinity * similarity).mean()
 
-        clLoss =
+        clLoss = None
         quantizationLoss = ((b - b.sign()) ** 2).mean()
 
         return likelihoodLoss + self.alpha * quantizationLoss, {"likelihoodLoss": likelihoodLoss, "quantizationLoss": quantizationLoss}

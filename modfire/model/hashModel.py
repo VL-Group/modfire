@@ -88,7 +88,7 @@ class HashModel(BinaryWrapper):
 
     def forward(self, x, *args, **kwArgs):
         z = self._backbone(x)
-        return { "z": z, "b": self._hashMethod(x, *args, **kwArgs) }
+        return { "z": z, "b": self._hashMethod(z, *args, **kwArgs) }
 
     def encode(self, image: Tensor):
         z = self._backbone(image)

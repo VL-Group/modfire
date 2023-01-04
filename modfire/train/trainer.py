@@ -27,7 +27,7 @@ from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
 from modfire.validate import Validator, metrics
-from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate, checkConfigSummary
+from modfire.utils import totalParameters, StrPath, getRichProgress, SafeTerminate
 from modfire.dataset import QuerySplit, Database, TrainSplit
 
 from .hooks import EpochFrequencyHook, checkHook, splitHooks
@@ -67,8 +67,6 @@ class PalTrainer(Restorable):
         self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
 
         self.earlyStopFlag = torch.tensor([False]).to(self.rank)
-
-        checkConfigSummary(self.config, self._model.module)
 
         self.saver.debug("<%s> created.", self.__class__.__name__)
 
@@ -481,6 +479,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
             self.earlyStopCount = 0
         else:
             self.earlyStopCount += 1
+            self.saver.debug("Performance not improved for %d / %d epochs.", self.earlyStopCount, self.config.Train.EarlyStop)
             if self.earlyStopCount >= self.config.Train.EarlyStop:
                 self.earlyStop()
 

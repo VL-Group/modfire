@@ -1,5 +1,5 @@
 $schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
-summary: 32bits_Hash_CSQ_resnet50_nus-wide
+comments: ""
 model:
   key: HashModel
   params:
@@ -11,7 +11,7 @@ model:
     params:
       initValue: 1.0
 train:
-  earlyStop: 3
+  earlyStop: 10
   epoch: 500
   valFreq: 25
   numReturns: 5000
@@ -34,7 +34,7 @@ train:
       root: data/easy/nuswide/
       batchSize: 128
       mode: Database
-  saveDir: saved/csq/easy/nus/32bits/
+  saveDir: saved/csq/nus/32bits/
   criterion:
     key: CSQ
     params:

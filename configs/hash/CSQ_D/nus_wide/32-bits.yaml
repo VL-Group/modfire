@@ -1,0 +1,61 @@
+$schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
+comments: ""
+model:
+  key: HashModel
+  params:
+    bits: 32
+    backbone: resnet50
+    hashMethod: LogitHash
+  temperature:
+    key: Constant
+    params:
+      initValue: 1.0
+train:
+  earlyStop: 10
+  epoch: 500
+  valFreq: 25
+  numReturns: 5000
+  trainer: BaseTrainer
+  trainSet:
+    key: NUS_WIDE
+    params:
+      root: data/easy/nuswide/
+      batchSize: 128
+      mode: Train
+  querySet:
+    key: NUS_WIDE
+    params:
+      root: data/easy/nuswide/
+      batchSize: 128
+      mode: Query
+  database:
+    key: NUS_WIDE
+    params:
+      root: data/easy/nuswide/
+      batchSize: 128
+      mode: Database
+  saveDir: saved/csq_d/nus/32bits/
+  criterion:
+    key: CSQ_D
+    params:
+      bits: 32
+      numClasses: 81
+  externalLib: []
+    # - some/modules/to/be/registered1.py
+    # - some/modules/to/be/registered2.py
+  optim:
+    key: Lamb
+    params:
+      lr: 1.e-3
+      # for Lamb: 0.01, for others: 1e-4
+      weight_decay: 0.01
+  schdr:
+    key: CosineAnnealingLRWarmUp
+    params:
+      epoch: 500
+      warmupEpoch: 50
+      warmupDecay: 1.e-6
+  gpu:
+    gpus: 1
+    vRam: -1
+    wantsMore: false

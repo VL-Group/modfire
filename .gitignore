@@ -10,7 +10,7 @@ tmp/
 # cifar*/
 AllTags81.txt
 Imagelist.txt
-data/
+**/data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -141,7 +141,3 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-configs/hash/Contrastive/easy/cifar10/32-bits.yaml
-configs/hash/Contrastive/easy/coco/32-bits.yaml
-configs/hash/Contrastive/easy/nus_wide/32-bits.yaml
-modfire/criterion/hash/contrastive.py

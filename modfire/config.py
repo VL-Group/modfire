@@ -1,7 +1,6 @@
-from copy import deepcopy
 from dataclasses import dataclass, field
-import math
-from typing import Any, Dict, List, Optional
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Tuple
 
 from marshmallow import Schema, fields, post_load, RAISE
 
@@ -76,7 +75,7 @@ class TrainSchema(Schema):
 class ConfigSchema(Schema):
     class Meta:
         unknown = RAISE
-    summary = fields.Str(required=True, description="The overall summary to describe method, bits, training set, etc. Strict format: `{bits}bits_{model_type}_{method}_{backbone}_{trainset}_{optional_comments}`. `model_type` can be found in `modfire.model.base`.")
+    comments = fields.Str(required=False, default="", description="Optional comments to describe this config.")
     model = fields.Nested(ModelSchema(), required=True, description="Model to use. Avaliable params are e.g. `backbone`, `bits` and `hashMethod`.")
     train = fields.Nested(TrainSchema(), required=True, description="Training configs.")
 
@@ -249,13 +248,13 @@ class Train:
 
 @dataclass
 class Config:
-    summary: str
     model: Model
     train: Train
+    comments: str = ""
 
     @property
-    def Summary(self) -> str:
-        return self.summary
+    def Summary(self) -> OrderedDict:
+        return OrderedDict(bits=self.model.Params["bits"], type=self.model.Key, backbone=self.model.Params["backbone"], method=self.train.Criterion.Key, trainSet=self.train.TrainSet.key, comments=self.comments)
 
     @property
     def Model(self) -> Model:

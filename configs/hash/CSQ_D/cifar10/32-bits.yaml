@@ -1,45 +1,45 @@
 $schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
-summary: 32bits_Hash_CSQ_resnet50_coco
+comments: ""
 model:
   key: HashModel
   params:
     bits: 32
     backbone: resnet50
-    hashMethod: SoftHash
+    hashMethod: LogitHash
   temperature:
     key: Constant
     params:
       initValue: 1.0
 train:
-  earlyStop: 3
+  earlyStop: 10
   epoch: 500
   valFreq: 25
-  numReturns: 5000
+  numReturns: -1
   trainer: BaseTrainer
   trainSet:
-    key: COCO
+    key: CIFAR10
     params:
-      root: data/easy/coco/
+      root: data/easy/cifar10/
       batchSize: 128
       mode: Train
   querySet:
-    key: COCO
+    key: CIFAR10
     params:
-      root: data/easy/coco/
+      root: data/easy/cifar10/
       batchSize: 128
       mode: Query
   database:
-    key: COCO
+    key: CIFAR10
     params:
-      root: data/easy/coco/
+      root: data/easy/cifar10/
       batchSize: 128
       mode: Database
-  saveDir: saved/csq/easy/coco/32bits/
+  saveDir: saved/csq_d/cifar10/32bits/
   criterion:
-    key: CSQ
+    key: CSQ_D
     params:
       bits: 32
-      numClasses: 80
+      numClasses: 10
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
@@ -50,9 +50,11 @@ train:
       # for Lamb: 0.01, for others: 1e-4
       weight_decay: 0.01
   schdr:
-    key: CosineAnnealingLR
+    key: CosineAnnealingLRWarmUp
     params:
-      T_max: 500
+      epoch: 500
+      warmupEpoch: 50
+      warmupDecay: 1.e-6
   gpu:
     gpus: 1
     vRam: -1

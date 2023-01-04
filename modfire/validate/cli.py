@@ -4,6 +4,7 @@ import click
 import pathlib
 import logging
 import yaml
+from collections import OrderedDict
 
 import torch
 from vlutils.logger import configLogging
@@ -12,7 +13,7 @@ from vlutils.logger import trackingFunctionCalls
 import modfire
 from modfire.utils.registry import ModelRegistry, DatasetRegistry
 from modfire.config import Config, TestConfig
-from modfire.utils import hashOfFile, versionCheck, getRichProgress, checkConfigSummary
+from modfire.utils import hashOfFile, versionCheck, getRichProgress
 
 from .validator import Validator
 
@@ -25,18 +26,13 @@ def checkArgs(debug: bool, quiet: bool):
     return logging.INFO
 
 
-def parseSummary(summary: str):
-    summarys = summary.split("_")
-    comments = summarys[5] if len(summarys) > 5 else None
-    return summarys[0], summarys[1], summarys[2], summarys[3], summarys[4], comments
-
-def appendResult(resultPath: pathlib.Path, summary: str, results: dict):
+def appendResult(resultPath: pathlib.Path, summary: OrderedDict, results: dict):
     with open(resultPath, "r") as fp:
-        results = yaml.full_load(fp)
-    bits, modelType, method, backbone, trainSet, comments = parseSummary(summary)
-    if modelType not in results:
-        results[modelType] = dict()
-    methods = results[modelType]
+        text = yaml.full_load(fp)
+    bits, modelType, method, backbone, trainSet, comments = summary["bits"], summary["type"], summary["method"], summary["backbone"], summary["trainSet"], summary["comments"]
+    if modelType not in text:
+        text[modelType] = dict()
+    methods = text[modelType]
     if method not in methods:
         methods[method] = dict()
     backbones = methods[method]
@@ -47,13 +43,13 @@ def appendResult(resultPath: pathlib.Path, summary: str, results: dict):
         allBits[bits] = dict()
     trainSets = allBits[bits]
 
-    if comments is not None:
+    if comments is not None and len(comments) > 0 and not comments.isspace():
         results.update({ "comments": comments })
 
     trainSets[trainSet] = results
 
     with open(resultPath, "w") as fp:
-        yaml.dump(results, fp)
+        yaml.dump(text, fp)
 
 
 def main(debug: bool, quiet: bool, export: bool, path: pathlib.Path, test: pathlib.Path):
@@ -80,12 +76,10 @@ def main(debug: bool, quiet: bool, export: bool, path: pathlib.Path, test: pathl
 
     model.load_state_dict(modelStateDict)
 
-    checkConfigSummary(config, model)
-
-    validator = Validator(testConfig.NumReturns, "cuda")
+    validator = Validator(testConfig.NumReturns)
 
     with getRichProgress() as progress:
-        result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Split, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).Split, progress)
+        result, summary = validator.validate(model, DatasetRegistry.get(testConfig.Database.Key)(**testConfig.Database.Params).Database, DatasetRegistry.get(testConfig.QuerySet.Key)(**testConfig.QuerySet.Params).QuerySplit, progress)
         logger.info(summary)
 
     if not export:
@@ -97,7 +91,7 @@ def main(debug: bool, quiet: bool, export: bool, path: pathlib.Path, test: pathl
 
     appendResult(resultPath, config.Summary, result)
 
-    finalName = test.parent.joinpath(f"{config.Summary}.modfire")
+    finalName = test.parent.joinpath("%s.modfire" % ".".join(config.Summary.values()))
 
     torch.save({
         "model": model.state_dict(),

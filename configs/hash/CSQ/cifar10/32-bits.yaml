@@ -1,45 +1,45 @@
 $schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
-summary: 32bits_Hash_CSQ-D_resnet50_nus-wide
+comments: ""
 model:
   key: HashModel
   params:
     bits: 32
     backbone: resnet50
-    hashMethod: LogitHash
+    hashMethod: SoftHash
   temperature:
     key: Constant
     params:
       initValue: 1.0
 train:
-  earlyStop: 3
+  earlyStop: 10
   epoch: 500
   valFreq: 25
-  numReturns: 5000
+  numReturns: -1
   trainer: BaseTrainer
   trainSet:
-    key: NUS_WIDE
+    key: CIFAR10
     params:
-      root: data/easy/nuswide/
+      root: data/easy/cifar10/
       batchSize: 128
       mode: Train
   querySet:
-    key: NUS_WIDE
+    key: CIFAR10
     params:
-      root: data/easy/nuswide/
+      root: data/easy/cifar10/
       batchSize: 128
       mode: Query
   database:
-    key: NUS_WIDE
+    key: CIFAR10
     params:
-      root: data/easy/nuswide/
+      root: data/easy/cifar10/
       batchSize: 128
       mode: Database
-  saveDir: saved/csq_d/easy/nus/32bits/
+  saveDir: saved/csq/cifar10/32bits/
   criterion:
-    key: CSQ_D
+    key: CSQ
     params:
       bits: 32
-      numClasses: 81
+      numClasses: 10
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
@@ -50,9 +50,11 @@ train:
       # for Lamb: 0.01, for others: 1e-4
       weight_decay: 0.01
   schdr:
-    key: CosineAnnealingLR
+    key: CosineAnnealingLRWarmUp
     params:
-      T_max: 500
+      epoch: 500
+      warmupEpoch: 50
+      warmupDecay: 1.e-6
   gpu:
     gpus: 1
     vRam: -1

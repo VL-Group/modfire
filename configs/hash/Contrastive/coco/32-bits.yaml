@@ -1,29 +1,25 @@
 $schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
-summary: 32bits_ProductQuantization_PQNet_resnet50_cifar10
+comments: ""
 model:
-  key: PQModel
+  key: HashModel
   params:
-    # 32 bits
-    m: 4
-    k: 256
-    d: 256
-    intraNormalization: false
+    bits: 32
     backbone: resnet50
-    pqMethod: SoftPQ
+    hashMethod: STEHash
   temperature:
     key: Constant
     params:
-      initValue: 0.1
+      initValue: 1.0
 train:
   earlyStop: 100
   epoch: 10000
   valFreq: 25
-  numReturns: -1
+  numReturns: 5000
   trainer: BaseTrainer
   trainSet:
-    key: CIFAR10
+    key: COCO
     params:
-      root: data/easy/cifar10/
+      root: data/easy/coco/
       batchSize: 384
       mode: Train
     pipeline:
@@ -31,23 +27,22 @@ train:
       params:
         nViews: 2
   querySet:
-    key: CIFAR10
+    key: COCO
     params:
-      root: data/easy/cifar10/
+      root: data/easy/coco/
       batchSize: 128
       mode: Query
   database:
-    key: CIFAR10
+    key: COCO
     params:
-      root: data/easy/cifar10/
+      root: data/easy/coco/
       batchSize: 128
       mode: Database
-  saveDir: saved/spq/easy/cifar10/32bits/
+  saveDir: saved/contrastive/coco/32bits/
   criterion:
-    key: SPQ
+    key: Contrastive
     params:
-      d: 256
-      temperature: 0.5 # contrastive loss
+      temperature: 0.07
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
@@ -58,9 +53,11 @@ train:
       # for Lamb: 0.01, for others: 1e-4
       weight_decay: 0.01
   schdr:
-    key: CosineAnnealingLR
+    key: CosineAnnealingLRWarmUp
     params:
-      T_max: 500
+      epoch: 500
+      warmupEpoch: 50
+      warmupDecay: 1.e-6
   gpu:
     gpus: 1
     vRam: -1

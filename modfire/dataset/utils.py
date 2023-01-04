@@ -93,10 +93,10 @@ def _defaultEvalDataPipe(*, samples: IterDataPipe, mapFunctionAfterBaseConversio
         .sharding_filter()\
         .map(mapFunctionAfterBaseConversion)\
         .map(evalTransform)\
-        .pin_memory()\
         .prefetch(batchSize)\
         .batch(batchSize)\
-        .collate()
+        .collate() # TODO: .pin_memory() \
+
 
 
 def _defaultTrainingDataPipe(*, labels: IterDataPipe, samples: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, **_):
@@ -107,10 +107,9 @@ def _defaultTrainingDataPipe(*, labels: IterDataPipe, samples: IterDataPipe, map
         .sharding_filter()\
         .map(mapFunctionAfterBaseConversion)\
         .map(trainTransform)\
-        .pin_memory()\
         .prefetch(batchSize)\
         .batch(batchSize)\
-        .collate()
+        .collate() # TODO: .pin_memory() \
 
 
 def _selfSupervisedTrainingDataPipe(*, samples: IterDataPipe, mapFunctionAfterBaseConversion: Callable, batchSize: int, nViews: int, **_):
@@ -122,10 +121,9 @@ def _selfSupervisedTrainingDataPipe(*, samples: IterDataPipe, mapFunctionAfterBa
         .repeat(nViews)\
         .map(mapFunctionAfterBaseConversion)\
         .map(trainTransform)\
-        .pin_memory()\
         .prefetch(batchSize)\
         .batch(batchSize)\
-        .collate()
+        .collate() # TODO: .pin_memory() \
 
 
 

@@ -1,18 +1,22 @@
 $schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
-summary: 32bits_Hash_CSQ-D_resnet50_cifar10
+comments: ""
 model:
-  key: HashModel
+  key: PQModel
   params:
-    bits: 32
+    # 32 bits
+    m: 4
+    k: 256
+    d: 256
+    intraNormalization: false
     backbone: resnet50
-    hashMethod: SoftHash
+    pqMethod: SoftPQ
   temperature:
     key: Constant
     params:
-      initValue: 1.0
+      initValue: 0.1
 train:
-  earlyStop: 3
-  epoch: 500
+  earlyStop: 100
+  epoch: 10000
   valFreq: 25
   numReturns: -1
   trainer: BaseTrainer
@@ -20,8 +24,12 @@ train:
     key: CIFAR10
     params:
       root: data/easy/cifar10/
-      batchSize: 128
+      batchSize: 384
       mode: Train
+    pipeline:
+      key: SelfSupervisedTrainingDataPipe
+      params:
+        nViews: 2
   querySet:
     key: CIFAR10
     params:
@@ -34,12 +42,12 @@ train:
       root: data/easy/cifar10/
       batchSize: 128
       mode: Database
-  saveDir: saved/csq/easy/cifar10/32bits/
+  saveDir: saved/spq/cifar10/32bits/
   criterion:
-    key: CSQ
+    key: SPQ
     params:
-      bits: 32
-      numClasses: 10
+      d: 256
+      temperature: 0.5 # contrastive loss
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
@@ -50,9 +58,11 @@ train:
       # for Lamb: 0.01, for others: 1e-4
       weight_decay: 0.01
   schdr:
-    key: CosineAnnealingLR
+    key: CosineAnnealingLRWarmUp
     params:
-      T_max: 500
+      epoch: 500
+      warmupEpoch: 50
+      warmupDecay: 1.e-6
   gpu:
     gpus: 1
     vRam: -1

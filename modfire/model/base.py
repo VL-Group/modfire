@@ -100,10 +100,10 @@ class BinaryWrapper(BaseWrapper):
                 # [N, bits]
                 h = self.encode(image.to(self._dummy.device, non_blocking=True))
                 self.database.add(h.cpu().numpy(), idx.cpu().numpy())
-                inrement = len(h)
-                total += inrement
+                increment = len(h)
+                total += increment
                 if progress is not None:
-                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+                    progress.update(task, advance=increment, progress=f" {total/1000:.1f}k")
         if progress is not None:
             progress.remove_task(task)
 
@@ -123,10 +123,10 @@ class BinaryWrapper(BaseWrapper):
             for idx, image in dataLoader:
                 # [N, bits]
                 h = self.encode(image.to(self._dummy.device, non_blocking=True))
-                inrement = len(h)
-                total += inrement
+                increment = len(h)
+                total += increment
                 if progress is not None:
-                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+                    progress.update(task, advance=increment, progress=f" {total/1000:.1f}k")
 
                 yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(h.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
         if progress is not None:
@@ -157,10 +157,10 @@ class PQWrapper(BaseWrapper):
                 # [N, D]
                 x = self.encode(image.to(self._dummy.device, non_blocking=True))
                 self.database.add(x.cpu().numpy(), idx.cpu().numpy())
-                inrement = len(x)
-                total += inrement
+                increment = len(x)
+                total += increment
                 if progress is not None:
-                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+                    progress.update(task, advance=increment, progress=f" {total/1000:.1f}k")
         if progress is not None:
             progress.remove_task(task)
 
@@ -181,10 +181,10 @@ class PQWrapper(BaseWrapper):
             for idx, image in dataLoader:
                 # [D]
                 x = self.encode(image.to(self._dummy.device, non_blocking=True))
-                inrement = len(x)
-                total += inrement
+                increment = len(x)
+                total += increment
                 if progress is not None:
-                    progress.update(task, advance=inrement, progress=f" {total/1000:.1f}k")
+                    progress.update(task, advance=increment, progress=f" {total/1000:.1f}k")
                 yield idx.to(self._dummy.device, non_blocking=True), torch.from_numpy(self.database.search(x.cpu().numpy(), numReturns)).to(idx.device, non_blocking=True).to(self._dummy.device, non_blocking=True)
         if progress is not None:
             progress.remove_task(task)

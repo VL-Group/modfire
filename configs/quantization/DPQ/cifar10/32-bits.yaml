@@ -1,0 +1,65 @@
+$schema: "https://raw.githubusercontent.com/VL-Group/modfire/main/configs/schema.json"
+comments: ""
+model:
+  key: PQModel
+  params:
+    # 32 bits
+    m: 4
+    k: 256
+    d: 256
+    intraNormalization: true
+    backbone: resnet50
+    pqMethod: SoftPQ
+  temperature:
+    key: Constant
+    params:
+      initValue: 0.1
+train:
+  earlyStop: 10
+  epoch: 500
+  valFreq: 25
+  numReturns: -1
+  trainer: BaseTrainer
+  trainSet:
+    key: CIFAR10
+    params:
+      root: data/easy/cifar10/
+      batchSize: 128
+      mode: Train
+  querySet:
+    key: CIFAR10
+    params:
+      root: data/easy/cifar10/
+      batchSize: 128
+      mode: Query
+  database:
+    key: CIFAR10
+    params:
+      root: data/easy/cifar10/
+      batchSize: 128
+      mode: Database
+  saveDir: saved/pq_net/cifar10/32bits/
+  criterion:
+    key: DPQ
+    params:
+      d: 256
+      numClasses: 10
+  externalLib: []
+    # - some/modules/to/be/registered1.py
+    # - some/modules/to/be/registered2.py
+  optim:
+    key: Lamb
+    params:
+      lr: 1.e-3
+      # for Lamb: 0.01, for others: 1e-4
+      weight_decay: 0.01
+  schdr:
+    key: CosineAnnealingLRWarmUp
+    params:
+      epoch: 500
+      warmupEpoch: 50
+      warmupDecay: 1.e-6
+  gpu:
+    gpus: 1
+    vRam: -1
+    wantsMore: false
