@@ -1,14 +1,14 @@
 # Schema Docs
 
-- [1. ![Required](https://img.shields.io/badge/Required-blue) Property `model`](#model)
-  - [1.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_key)
-  - [1.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_params)
-    - [1.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_params_additionalProperties)
-  - [1.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `temperature`](#model_temperature)
-    - [1.3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_temperature_key)
-    - [1.3.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_temperature_params)
-      - [1.3.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_temperature_params_additionalProperties)
-- [2. ![Required](https://img.shields.io/badge/Required-blue) Property `summary`](#summary)
+- [1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `comments`](#comments)
+- [2. ![Required](https://img.shields.io/badge/Required-blue) Property `model`](#model)
+  - [2.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_key)
+  - [2.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_params)
+    - [2.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_params_additionalProperties)
+  - [2.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `temperature`](#model_temperature)
+    - [2.3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`](#model_temperature_key)
+    - [2.3.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`](#model_temperature_params)
+      - [2.3.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`](#model_temperature_params_additionalProperties)
 - [3. ![Required](https://img.shields.io/badge/Required-blue) Property `train`](#train)
   - [3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `criterion`](#train_criterion)
   - [3.2. ![Required](https://img.shields.io/badge/Required-blue) Property `database`](#train_database)
@@ -41,13 +41,24 @@
 | **Additional properties** | [![Not allowed](https://img.shields.io/badge/Not%20allowed-red)](# "Additional Properties not allowed.") |
 | **Defined in**            | #/definitions/ConfigSchema                                                                               |
 
-| Property               | Pattern | Type   | Deprecated | Definition                   | Title/Description                                                                  |
-| ---------------------- | ------- | ------ | ---------- | ---------------------------- | ---------------------------------------------------------------------------------- |
-| + [model](#model )     | No      | object | No         | In #/definitions/ModelSchema | Model to use. Avaliable params are e.g. \`backbone\`, \`bits\` and \`hashMethod\`. |
-| + [summary](#summary ) | No      | string | No         | -                            | summary                                                                            |
-| + [train](#train )     | No      | object | No         | In #/definitions/TrainSchema | Training configs.                                                                  |
+| Property                 | Pattern | Type   | Deprecated | Definition                   | Title/Description                                                                  |
+| ------------------------ | ------- | ------ | ---------- | ---------------------------- | ---------------------------------------------------------------------------------- |
+| - [comments](#comments ) | No      | string | No         | -                            | comments                                                                           |
+| + [model](#model )       | No      | object | No         | In #/definitions/ModelSchema | Model to use. Avaliable params are e.g. \`backbone\`, \`bits\` and \`hashMethod\`. |
+| + [train](#train )       | No      | object | No         | In #/definitions/TrainSchema | Training configs.                                                                  |
 
-## <a name="model"></a>1. ![Required](https://img.shields.io/badge/Required-blue) Property `model`
+## <a name="comments"></a>1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `comments`
+
+**Title:** comments
+
+|             |          |
+| ----------- | -------- |
+| **Type**    | `string` |
+| **Default** | `""`     |
+
+**Description:** Optional comments to describe this config.
+
+## <a name="model"></a>2. ![Required](https://img.shields.io/badge/Required-blue) Property `model`
 
 |                           |                                                                                                          |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -63,7 +74,7 @@
 | - [params](#model_params )           | No      | object | No         | -                              | params                                   |
 | - [temperature](#model_temperature ) | No      | object | No         | In #/definitions/GeneralSchema | A spec of temperature tuning schdeduler. |
 
-### <a name="model_key"></a>1.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
+### <a name="model_key"></a>2.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
 
 **Title:** key
 
@@ -73,7 +84,7 @@
 
 **Description:** A unique key used to retrieve in ModelRegistry.
 
-### <a name="model_params"></a>1.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
+### <a name="model_params"></a>2.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
 
 **Title:** params
 
@@ -89,14 +100,14 @@
 | ------------------------------------------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
 | - [additionalProperties](#model_params_additionalProperties ) | No      | object | No         | -          | -                 |
 
-#### <a name="model_params_additionalProperties"></a>1.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
+#### <a name="model_params_additionalProperties"></a>2.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
 
 |                           |                                                                                                                                   |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                                          |
 | **Additional properties** | [![Any type: allowed](https://img.shields.io/badge/Any%20type-allowed-green)](# "Additional Properties of any type are allowed.") |
 
-### <a name="model_temperature"></a>1.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `temperature`
+### <a name="model_temperature"></a>2.3. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `temperature`
 
 |                           |                                                                                                          |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -111,7 +122,7 @@
 | + [key](#model_temperature_key )       | No      | string | No         | -          | key               |
 | - [params](#model_temperature_params ) | No      | object | No         | -          | params            |
 
-#### <a name="model_temperature_key"></a>1.3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
+#### <a name="model_temperature_key"></a>2.3.1. ![Required](https://img.shields.io/badge/Required-blue) Property `key`
 
 **Title:** key
 
@@ -122,7 +133,7 @@
 
 **Description:** A unique key used to retrieve in registry. For example, given `Lamb` for optimizers, it will check `OptimRegistry` and find the optimizer `apex.optim.FusedLAMB`.
 
-#### <a name="model_temperature_params"></a>1.3.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
+#### <a name="model_temperature_params"></a>2.3.2. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `params`
 
 **Title:** params
 
@@ -138,22 +149,12 @@
 | ------------------------------------------------------------------------- | ------- | ------ | ---------- | ---------- | ----------------- |
 | - [additionalProperties](#model_temperature_params_additionalProperties ) | No      | object | No         | -          | -                 |
 
-##### <a name="model_temperature_params_additionalProperties"></a>1.3.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
+##### <a name="model_temperature_params_additionalProperties"></a>2.3.2.1. ![Optional](https://img.shields.io/badge/Optional-yellow) Property `additionalProperties`
 
 |                           |                                                                                                                                   |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **Type**                  | `object`                                                                                                                          |
 | **Additional properties** | [![Any type: allowed](https://img.shields.io/badge/Any%20type-allowed-green)](# "Additional Properties of any type are allowed.") |
-
-## <a name="summary"></a>2. ![Required](https://img.shields.io/badge/Required-blue) Property `summary`
-
-**Title:** summary
-
-|          |          |
-| -------- | -------- |
-| **Type** | `string` |
-
-**Description:** The overall summary to describe method, bits, training set, etc. Strict format: `{bits}bits_{model_type}_{method}_{backbone}_{trainset}_{optional_comments}`. `model_type` can be found in `modfire.model.base`.
 
 ## <a name="train"></a>3. ![Required](https://img.shields.io/badge/Required-blue) Property `train`
 
