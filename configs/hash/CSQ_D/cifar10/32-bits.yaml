@@ -5,7 +5,8 @@ model:
   params:
     bits: 32
     backbone: resnet50
-    hashMethod: LogitHash
+    hashMethod:
+      key: LogitHash
   temperature:
     key: Constant
     params:
@@ -40,13 +41,14 @@ train:
     params:
       bits: 32
       numClasses: 10
+      addRegularization: true
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
   optim:
     key: Lamb
     params:
-      lr: 1.e-3
+      lr: 1.e-4
       # for Lamb: 0.01, for others: 1e-4
       weight_decay: 0.01
   schdr:
@@ -54,7 +56,7 @@ train:
     params:
       epoch: 500
       warmupEpoch: 50
-      warmupDecay: 1.e-6
+      warmupDecay: 1.e-2
   gpu:
     gpus: 1
     vRam: -1

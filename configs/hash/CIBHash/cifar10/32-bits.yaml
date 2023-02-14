@@ -6,14 +6,10 @@ model:
     bits: 32
     backbone: resnet50
     hashMethod:
-      key: SoftHash
-  temperature:
-    key: Constant
-    params:
-      initValue: 1.0
+      key: STEHash
 train:
-  earlyStop: 10
-  epoch: 500
+  earlyStop: 100
+  epoch: 10000
   valFreq: 25
   numReturns: -1
   trainer: BaseTrainer
@@ -21,8 +17,12 @@ train:
     key: CIFAR10
     params:
       root: data/easy/cifar10/
-      batchSize: 128
+      batchSize: 384
       mode: Train
+    pipeline:
+      key: SelfSupervisedTrainingDataPipe
+      params:
+        nViews: 2
   querySet:
     key: CIFAR10
     params:
@@ -35,12 +35,12 @@ train:
       root: data/easy/cifar10/
       batchSize: 128
       mode: Database
-  saveDir: saved/csq/cifar10/32bits/
+  saveDir: saved/cibhash/cifar10/32bits/
   criterion:
-    key: CSQ
+    key: CIBHash
     params:
-      bits: 32
-      numClasses: 10
+      temperature: 0.07
+      gamma: 0.001
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
@@ -53,9 +53,9 @@ train:
   schdr:
     key: CosineAnnealingLRWarmUp
     params:
-      epoch: 500
+      epoch: 10000
       warmupEpoch: 50
-      warmupDecay: 1.e-6
+      warmupDecay: 1.e-2
   gpu:
     gpus: 1
     vRam: -1

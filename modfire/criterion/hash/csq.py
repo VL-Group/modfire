@@ -5,6 +5,7 @@ from scipy.linalg import hadamard
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.distributions import Categorical
 
 from modfire import Consts
 import modfire.train.hooks
@@ -140,13 +141,14 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
     multiplier: torch.LongTensor
     permIdx: torch.LongTensor
 
-    def __init__(self, bits: int, numClasses: int, _lambda: float = 0.0001):
+    def __init__(self, bits: int, numClasses: int, addRegularization: bool, _lambda: float = 0.0001):
         super().__init__(bits, numClasses, _lambda)
         self.bitFlip = self._randomBitFlip(bits, int(bits // 32) ** 2)
         self.mapper = self._mapNet(bits)
         self.register_buffer("multiplier", (2 ** torch.arange(8)).long())
         self.register_buffer("permIdx", torch.randperm(bits))
         self.m = bits // 8
+        self.addRegularization = addRegularization
 
     @property
     def BitFlip(self) -> int:
@@ -191,7 +193,6 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
 
         hashCenter = self.centroids[:, self.permIdx].clone().detach()
 
-        netLoss = list()
         decimalHatGrad = self.mapper(z, False)
         # M * [N, 256]
         splitted = torch.chunk(decimalHatGrad, self.m, -1)
@@ -200,6 +201,9 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
         hashCenterSplitted = torch.chunk(hashCenter > 0, self.m, -1)
 
         numClasses = len(self.centroids)
+
+        netLoss = list()
+        regLoss = list()
 
         for subX, targetCenter in zip(splitted, hashCenterSplitted):
             # bits to decimal
@@ -219,6 +223,56 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             loss = (((loss * y)).sum(-1) / y.sum(-1)).sum() / len(loss)
             netLoss.append(loss)
 
+            if self.addRegularization:
+                # naive
+                # meanLogits = subX.mean(0, keepdim=True)
+                # entropy = Categorical(logits=meanLogits).entropy().mean()
+                # regLoss.append(-entropy)
+
+                # use probs
+                meanProbs = subX.softmax(-1).mean(0, keepdim=True)
+                entropy = Categorical(probs=meanProbs).entropy().mean()
+                regLoss.append(-entropy)
+
+                # use STE, like gumbel-softmax
+                # see https://aclanthology.org/2022.acl-short.20.pdf
+                # MLE estimator
+                # [N, K]
+                # oneHot = F.one_hot(subX.argmax(-1), num_classes=256).float()
+                # ste = (oneHot - subX).detach() + subX
+                # meanProbs = ste.mean(0, keepdim=True)
+                # entropy = Categorical(probs=meanProbs).entropy().mean()
+                # regLoss.append(-1e-8 * entropy)
+
+                # jackknife estimator
+                # oneHot = F.one_hot(subX.argmax(-1), num_classes=256).float()
+                # ste = (oneHot - subX).detach() + subX
+                # meanProbs = ste.mean(0, keepdim=True)
+                # entropy = Categorical(probs=meanProbs).entropy().sum()
+                # partialEntropys = list()
+                # for i in range(len(subX)):
+                #     mask = torch.ones([len(subX)], dtype=torch.bool)
+                #     mask[i] = False
+                #     partial = ste[mask]
+                #     partialProbs = partial.mean(0, keepdim=True)
+                #     partialEntropy = Categorical(probs=partialProbs).entropy().sum()
+                #     partialEntropys.append(partialEntropy)
+                # jackknife = len(subX) * entropy - (len(subX) - 1) / len(subX) * sum(partialEntropys)
+                # regLoss.append(-1e-8 * jackknife)
+
+                # meanProbs = subX.softmax(-1).mean(0, keepdim=True)
+                # entropy = Categorical(probs=meanProbs).entropy().sum()
+                # partialEntropys = list()
+                # for i in range(len(subX)):
+                #     mask = torch.ones([len(subX)], dtype=torch.bool)
+                #     mask[i] = False
+                #     partial = subX.softmax(-1)[mask]
+                #     partialProbs = partial.mean(0, keepdim=True)
+                #     partialEntropy = Categorical(probs=partialProbs).entropy().sum()
+                #     partialEntropys.append(partialEntropy)
+                # jackknife = len(subX) * entropy - (len(subX) - 1) / len(subX) * sum(partialEntropys)
+                # regLoss.append(-jackknife)
+
         codesToCenterDistance = list()
         for i in range(len(self.centroids)):
             thisClassFeatures = z[y[:, i] > 0]
@@ -230,5 +284,6 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
 
         netLoss = sum(netLoss)
         mapLoss = sum(mapLoss)
+        regLoss = sum(regLoss)
 
-        return netLoss + mapLoss, { "netLoss": netLoss, "mapLoss": mapLoss, "hitRate": sum(hitRate) / self.m, "codesToCenterDistance": codesToCenterDistance }
+        return netLoss + mapLoss + regLoss, { "netLoss": netLoss, "mapLoss": mapLoss, "regLoss": regLoss, "hitRate": sum(hitRate) / self.m, "codesToCenterDistance": codesToCenterDistance }

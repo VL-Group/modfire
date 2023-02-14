@@ -5,7 +5,8 @@ model:
   params:
     bits: 32
     backbone: resnet50
-    hashMethod: LogitHash
+    hashMethod:
+      key: LogitHash
   temperature:
     key: Constant
     params:

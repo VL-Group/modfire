@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+import numbers
+from typing import Union
 
 from torch import nn, Tensor
 from torchvision.models import get_model, get_model_weights
 from vlutils.base import Registry
 
-from modfire.utils import ValueBase
+from modfire.utils import ValueBase, registry
 
 from .utils import findLastLinear, replaceModule
 from .base import BinaryWrapper, ModelRegistry
@@ -35,9 +37,13 @@ class HashRegistry(Registry):
 
 
 class HashLayer(ABC, nn.Module):
-    def __init__(self, temperature: ValueBase):
+    def __init__(self, temperature: Union[dict, numbers.Number] = 1.0):
         super().__init__()
-        self.temperature = temperature
+        if isinstance(temperature, numbers.Number):
+            temperatureTuner = registry.ValueRegistry.get("Constant")(float(temperature))
+        else:
+            temperatureTuner = registry.ValueRegistry.get(temperature["key"])(temperature["params"])
+        self.temperature = temperatureTuner
 
     def step(self):
         self.temperature.step()
@@ -61,23 +67,23 @@ class STEHash(HashLayer):
 
 @HashRegistry.register
 class SoftHash(HashLayer):
-    def trainableHashFunction(self, h: Tensor, temperature: float = 1.0) -> Tensor:
+    def trainableHashFunction(self, h: Tensor, temperature: float = 1.0, *_, **__) -> Tensor:
         return (h / temperature).tanh()
 
 
 @HashRegistry.register
 class LogitHash(HashLayer):
-    def trainableHashFunction(self, h: Tensor, temperature: float = 1.0) -> Tensor:
+    def trainableHashFunction(self, h: Tensor, temperature: float = 1.0, *_, **__) -> Tensor:
         return h / temperature
 
 
 @ModelRegistry.register
 class HashModel(BinaryWrapper):
-    def __init__(self, bits: int, backbone: str, hashMethod: str, *args, **kwArgs):
+    def __init__(self, bits: int, backbone: str, hashMethod: dict, *_, **__):
         super().__init__(bits)
         self._backboneName = backbone
         self._backbone = Backbone(bits, backbone)
-        self._hashMethod = HashRegistry.get(hashMethod)(*args, **kwArgs)
+        self._hashMethod = HashRegistry.get(hashMethod["key"])(**hashMethod.get("params", {}))
 
     def step(self):
         self._hashMethod.step()

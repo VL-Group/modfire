@@ -31,7 +31,6 @@ class ModelSchema(Schema):
         unknown = RAISE
     key = fields.Str(required=True, description="A unique key used to retrieve in ModelRegistry.")
     params = fields.Dict(required=False, default={}, description="Corresponding funcation call parameters. So the whole call is `registry.get(key)(**params)`.")
-    temperature = fields.Nested(GeneralSchema(), required=False, description="A spec of temperature tuning schdeduler.")
 
     @post_load
     def _(self, data, **kwargs):
@@ -149,7 +148,6 @@ class GPU:
 class Model:
     key: str
     params: Dict[str, Any]
-    temperature: General
 
     @property
     def Key(self) -> str:
@@ -158,10 +156,6 @@ class Model:
     @property
     def Params(self) -> Dict[str, Any]:
         return self.params
-
-    @property
-    def Temperature(self) -> General:
-        return self.temperature
 
 @dataclass
 class Train:

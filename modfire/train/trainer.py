@@ -8,6 +8,7 @@ import pathlib
 import hashlib
 import importlib.util
 import sys
+import numbers
 
 import torch
 from torch.nn.parallel import DistributedDataParallel
@@ -22,7 +23,7 @@ from vlutils.runtime import relativePath
 from vlutils.config import summary
 
 import modfire.utils.registry
-from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry, DataPipeRegistry, ValueRegistry
+from modfire.utils.registry import OptimRegistry, SchdrRegistry, CriterionRegistry, ModelRegistry, DatasetRegistry, DataPipeRegistry
 from modfire import Consts
 from modfire.config import Config
 from modfire.train.hooks import getAllHooks
@@ -210,9 +211,7 @@ class PalTrainer(Restorable):
         saver.debug("Creating model...")
         modelFn = trackingFunctionCalls(ModelRegistry.get(config.Model.Key), saver)
 
-        value = trackingFunctionCalls(ValueRegistry.get(config.Model.Temperature.Key), saver)(**config.Model.Temperature.Params)
-
-        model = modelFn(**config.Model.Params, temperature=value)
+        model = modelFn(**config.Model.Params)
 
         # EMA model for evaluation
         # deepcopy can't handle faiss objects. reject.
@@ -383,14 +382,17 @@ class MainTrainer(PalTrainer, SafeTerminate):
             return
 
         for key, value in stats.items():
-            if value.numel() == 1:
+            if isinstance(value, numbers.Number):
                 self.saver.add_scalar(f"Stat/{key}", value, global_step=self._step)
-            elif len(value.shape) == 4:
-                self.saver.add_images(f"Stat/{key}", value, global_step=self._step)
-            elif len(value.shape) == 3:
-                self.saver.add_image(f"Stat/{key}", value, global_step=self._step)
             else:
-                self.saver.add_histogram(f"Stat/{key}", value, global_step=self._step)
+                if value.numel() == 1:
+                    self.saver.add_scalar(f"Stat/{key}", value, global_step=self._step)
+                elif len(value.shape) == 4:
+                    self.saver.add_images(f"Stat/{key}", value, global_step=self._step)
+                elif len(value.shape) == 3:
+                    self.saver.add_image(f"Stat/{key}", value, global_step=self._step)
+                else:
+                    self.saver.add_histogram(f"Stat/{key}", value, global_step=self._step)
         self.saver.add_scalar("Stat/Loss", loss, global_step=self._step)
         self.saver.add_scalar("Stat/Lr", self._scheduler.get_last_lr()[0], global_step=self._step)
 

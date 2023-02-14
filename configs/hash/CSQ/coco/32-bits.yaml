@@ -5,7 +5,8 @@ model:
   params:
     bits: 32
     backbone: resnet50
-    hashMethod: SoftHash
+    hashMethod:
+      key: SoftHash
   temperature:
     key: Constant
     params:
