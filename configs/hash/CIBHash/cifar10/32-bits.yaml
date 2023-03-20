@@ -7,6 +7,11 @@ model:
     backbone: resnet50
     hashMethod:
       key: STEHash
+      # params:
+      #   temperature:
+      #     key: Constant
+      #     params:
+      #       initValue: 1.0
 train:
   earlyStop: 100
   epoch: 10000
@@ -54,7 +59,7 @@ train:
     key: CosineAnnealingLRWarmUp
     params:
       epoch: 10000
-      warmupEpoch: 50
+      warmupEpoch: 5
       warmupDecay: 1.e-2
   gpu:
     gpus: 1
