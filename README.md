@@ -73,30 +73,78 @@ ModFire is a training, testing, deploying toolkit for modern fast image retrieva
 
 # Motivation
 
+Evaluating performance of a hashing / quantization based retrieval model is tricky. You may meet various evaluation protocols (3 kinds of CIFAR-10, 2 kinds of NUS-WIDE, the randomness in splits also matters a lot), you may handle different backbones (what should I use? AlexNet, VGG, ResNet?), you may even fight with some legacy codes (lots of troubles with Caffe, MXNet, TensorFlow). These just mess things up.
+
+A comprehensive benchmark is needed for all methods --- with the latest deep learning tricks. Therefore, this repo issues the whole pipeline for it, with the extensible and customizable training and evaluation configs.
 
 # Quick Start
-<!-- It is easy (with a GPU, or CPU if you like) to try our model. I would give a quick guide to help you compress an image and restore it. -->
-<!--
+
 ## Requirements
-To run the model, your device needs to meet following requirements.
 
 * Hardware
-  * a CUDA-enabled GPU (`≥ 8GiB VRAM`, Driver version `≥ 450.80.02`)
-  * If you don't have GPU, running models on CPU may be slower.
-  * `≥ 8GiB RAM`
+  * A CUDA-enabled GPU (`≥ 16GiB VRAM`)
+  * `≥ 32GiB RAM`
 * OS
-  * I've tested all features on `Ubuntu`, other platforms should also work. If not, please [file bugs](#contribute-to-this-repository). -->
+  * All features are tested on `Ubuntu 20.04`, other platforms should also work. If not, please [file bugs](#contribute-to-this-repository).
+* Software
+  * A `conda` environment is highly recommended.
+  * Python should be `< 3.9` due to package dependencies. The following packages would be installed if missed, but it's still recommended to install them manually to choose your preferred version.
+  * `PyTorch >= 11.3` with `torchdata, torchvision`.
+  * `faiss-cpu >= 1.7`
+
+
+To use ModFire, a direct way is to use the PyPI package:
+```bash
+pip install modfire
+modfire -v
+```
+That will prints:
+```plain
+
+                      _  __ _
+  _ __ ___   ___   __| |/ _(_)_ __ ___
+ | '_ ` _ \ / _ \ / _` | |_| | '__/ _ \
+ | | | | | | (_) | (_| |  _| | | |  __/
+ |_| |_| |_|\___/ \__,_|_| |_|_|  \___|
+
+0.1.0
+```
 
 
 # Usage
+## Data
+Common retrieval datasets are included in the repo.
+```bash
+modfire dataset
+```
+
+```plain
+Available datasets are:
+      CIFAR10     : modfire.dataset.easy.cifar.CIFAR10
+      CIFAR100    : modfire.dataset.easy.cifar.CIFAR100
+      COCO        : modfire.dataset.easy.coco.COCO
+      ImageNet100 : modfire.dataset.easy.imagenet100.ImageNet100
+      MIRFlickr25k: modfire.dataset.easy.mirflickr25k.MIRFlickr25k
+      NUS_WIDE    : modfire.dataset.easy.nuswide.NUS_WIDE
+```
+You could download them by just a command.
+```bash
+modfire dataset --root [TARGET_DIR] [DATASET_NAME]
+```
+
+## Training
+```bash
+modfire train [CONFIG_PATH]
+```
+
 
 
 # Contribute to this Repository
-It will be very nice if you want to check your new ideas or add new functions 😊. You will need to install `mcquic` by [**Docker**](#docker-recommended) or [**manually (with optional step)**](#install-manually-for-dev). Just like other git repos, before raising issues or pull requests, please take a thorough look at [issue templates](https://github.com/VL-Group/modfire/issues/new/choose).
+Just like other git repos, before raising issues or pull requests, please take a thorough look at [issue templates](https://github.com/VL-Group/modfire/issues/new/choose).
 
 
 # To-do List
-
+* Benchmarking site
 
 # References and License
 ## References

@@ -35,7 +35,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option("--root", required=False, type=click.Path(exists=False, file_okay=False, resolve_path=True, path_type=pathlib.Path))
 @click.argument("dataset", type=str, required=False, nargs=1)
 def entryPoint(debug: bool, quiet: bool, root: pathlib.Path, dataset: str):
-    """Create training set from `images` dir to `output` dir.
+    """Download dataset to `root` directory.
 
 Args:
 

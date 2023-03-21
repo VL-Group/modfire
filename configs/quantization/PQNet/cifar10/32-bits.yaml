@@ -16,7 +16,7 @@ model:
       initValue: 0.1
 train:
   earlyStop: 10
-  epoch: 500
+  epoch: 100
   valFreq: 25
   numReturns: -1
   trainer: BaseTrainer
@@ -57,7 +57,7 @@ train:
   schdr:
     key: CosineAnnealingLRWarmUp
     params:
-      epoch: 500
+      epoch: 100
       warmupEpoch: 5
       warmupDecay: 1.e-2
   gpu:

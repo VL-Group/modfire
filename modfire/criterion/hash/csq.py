@@ -167,7 +167,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
 
     def epochFinish(self, step: int, epoch: int, *_, logger, **__):
         logger.debug("Call `CSQ_D.epochFinish()`.")
-        if epoch:
+        if epoch % 4 == 0:
             logger.debug("Reset permutation index in `CSQ_D`.")
             self.reset()
 
@@ -224,6 +224,16 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             netLoss.append(loss)
 
             if self.addRegularization:
+
+                labels = y.argmax(-1)
+
+                uniqueLabels = torch.unique(labels)
+
+                for l in uniqueLabels:
+                    xOfThisLabel = subX[labels == l]
+                    probs = xOfThisLabel.softmax(-1).mean(0, keepdim=True)
+                    regLoss.append(1e-1 * Categorical(probs=probs).entropy().mean())
+
                 # naive
                 # meanLogits = subX.mean(0, keepdim=True)
                 # entropy = Categorical(logits=meanLogits).entropy().mean()
