@@ -8,10 +8,10 @@ class SchdrRegistry(Registry[Callable[..., _LRScheduler]]):
     pass
 
 @SchdrRegistry.register("CosineAnnealingLRWarmUp")
-def cosineAnnealingLRWarmUp(optimizer, epoch, warmupEpoch, warmupDecay):
+def cosineAnnealingLRWarmUp(optimizer, epoch, warmupEpoch, warmupDecay, last_epoch=-1):
     warmupScheduler = LinearLR(optimizer, start_factor=warmupDecay, total_iters=warmupEpoch)
     scheduler = CosineAnnealingLR(optimizer, T_max=epoch - warmupEpoch)
-    return SequentialLR(optimizer, [warmupScheduler, scheduler], milestones=[warmupEpoch])
+    return SequentialLR(optimizer, [warmupScheduler, scheduler], milestones=[warmupEpoch], last_epoch=last_epoch)
 
 SchdrRegistry.register("ExponentialLR")(ExponentialLR)
 SchdrRegistry.register("CosineAnnealingWarmRestarts")(CosineAnnealingWarmRestarts)

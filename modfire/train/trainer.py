@@ -13,6 +13,8 @@ import numbers
 import torch
 from torch.nn.parallel import DistributedDataParallel
 from torch import distributed as dist
+from torch.cuda.amp.grad_scaler import GradScaler
+from torch.cuda.amp.autocast_mode import autocast
 from torchdata.dataloader2 import DataLoader2, MultiProcessingReadingService
 from vlutils.base import Registry
 from vlutils.base.freqHook import ChainHook
@@ -107,6 +109,8 @@ class PalTrainer(Restorable):
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver, self._model, self._criterion)
 
+        scaler = GradScaler()
+
         datasets = self._createDatasets(self.config, self.saver)
 
         # The DistributedReadingService is too slow since it use only one worker per node.
@@ -126,19 +130,23 @@ class PalTrainer(Restorable):
                 if self._step % batchesOneEpoch == 0:
                     self._epochStart(epochStartHook, **datasets)
 
-                # Main loop
-                # Any dict used as args for model, criterion
-                otherArgs = self._stepStart(stepStartHook, inputs=(targets, images))
+                with autocast():
+
+                    # Main loop
+                    # Any dict used as args for model, criterion
+                    otherArgs = self._stepStart(stepStartHook, inputs=(targets, images))
+
+                    # A dict as keyword arguments for criterion
+                    outputs = self._model(images.to(self.rank, non_blocking=True, memory_format=torch.channels_last), **otherArgs)
+
+                    # loss: A scalar, stats: A dict as keyword arguments for logging
+                    loss, stats = self._criterion(**outputs, y=targets.to(self.rank, non_blocking=True), **otherArgs)
+
+                scaler.scale(loss).backward()
+                scaler.step(self._optimizer)
+                scaler.update()
                 self._optimizer.zero_grad()
 
-                # A dict as keyword arguments for criterion
-                outputs = self._model(images.to(self.rank, non_blocking=True), **otherArgs)
-
-                # loss: A scalar, stats: A dict as keyword arguments for logging
-                loss, stats = self._criterion(**outputs, y=targets.to(self.rank, non_blocking=True), **otherArgs)
-
-                loss.backward()
-                self._optimizer.step()
 
                 self._stepFinish(stepFinishHook, loss=loss, stats=stats, outputs=outputs, **otherArgs)
                 if self._step % batchesOneEpoch == 0:
@@ -221,7 +229,7 @@ class PalTrainer(Restorable):
         # modelEMA = ExponentialMovingAverage(model, device=rank, decay=1.0 - alpha)
         # EMA model for evaluation
 
-        model = DistributedDataParallel(model.to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
+        model = DistributedDataParallel(model.to(memory_format=torch.channels_last).to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         saver.debug("Model created. #Params: %s.", totalParameters(model))
         return model
@@ -416,6 +424,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
             EpochFrequencyHook(
                 (config.Train.ValFreq, self.validate), logger=saver
             ), epochFinishHook), "EpochFinishHook", saver)
+
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
     @staticmethod

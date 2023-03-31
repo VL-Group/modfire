@@ -79,10 +79,10 @@ class LogitHash(HashLayer):
 
 @ModelRegistry.register
 class HashModel(BinaryWrapper):
-    def __init__(self, bits: int, backbone: str, hashMethod: dict, *_, **__):
+    def __init__(self, bits: int, backbone: str, hashMethod: dict, pretrained: bool = True, *_, **__):
         super().__init__(bits)
         self._backboneName = backbone
-        self._backbone = Backbone(bits, backbone)
+        self._backbone = Backbone(bits, backbone, pretrained)
         self._hashMethod = HashRegistry.get(hashMethod["key"])(**hashMethod.get("params", {}))
 
     def step(self):

@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical, Bernoulli, kl_divergence
 
 from modfire import Consts
+import modfire.train.hooks
 
 from ..utils import pairwiseHamming, CriterionRegistry, pairwiseCosine, pariwiseAffinity
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(Consts.Root)
 
 @CriterionRegistry.register
 class CIBHash(nn.Module):
-    def __init__(self, gamma: float, temperature: float):
+    def __init__(self, gamma: float, temperature: float, bits: int):
         super().__init__()
         self.temperature = temperature
         self.gamma = gamma
@@ -25,6 +26,8 @@ class CIBHash(nn.Module):
         return ((kl_divergence(left, right) + kl_divergence(right, left)) / 2).mean()
 
     def splitFeatureInTwoViews(self, z: torch.Tensor, y: torch.Tensor):
+        idx = torch.arange(len(z)).reshape(-1, 2)
+        return z[idx[:, 0]], z[idx[:, 1]]
         # [?]
         uniqueLabels = torch.unique(y)
         lefts = list()
@@ -38,19 +41,30 @@ class CIBHash(nn.Module):
         return z[torch.cat(lefts)], z[torch.cat(rights)]
 
     def contrastiveLoss(self, left: torch.Tensor, right: torch.Tensor):
+        left = left.sigmoid() - 0.5
+        right = right.sigmoid() - 0.5
+
+        left = (left.sign() - left).detach() + left
+        right = (right.sign() - right).detach() + right
+
+
         batchSize = len(left)
         N = 2 * batchSize
         z = torch.cat((left, right))
-        sim = F.cosine_similarity(z[:, None], z[None, :], -1) / self.temperature
 
-        simIJ = torch.diag(sim, batchSize)
-        simJI = torch.diag(sim, -batchSize)
+        cosine = z @ z.T
+
+        sim = cosine / self.temperature
+
+        simIJ = sim.diagonal(batchSize)
+        simJI = sim.diagonal(-batchSize)
 
         mask = (~torch.eye(N, dtype=torch.bool))
 
         upper, lower = mask.diagonal(batchSize), mask.diagonal(-batchSize)
         upper.copy_(False)
         lower.copy_(False)
+
 
         positives = torch.cat((simIJ, simJI)).reshape(N, 1)
         negatives = sim[mask].reshape(N, -1)
@@ -66,7 +80,7 @@ class CIBHash(nn.Module):
         return loss, { "jsLoss": jsLoss, "contrastiveLoss": contrastiveLoss }
 
 @CriterionRegistry.register
-class CIBHash_D(nn.Module):
+class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
     # NOTE: A very interesting thing:
     #       Even if we don't train the mapNet
     #       The Hashing performance is still very high.
@@ -114,7 +128,7 @@ class CIBHash_D(nn.Module):
                 nn.Linear(256, 256)
             )
             self._net = nn.ModuleList(ffnNet() for _ in range(bits // 8))
-            self._bitFlip = Contrastive_D._randomBitFlip(bits, int(bits // 32) ** 2)
+            self._bitFlip = CIBHash_D._randomBitFlip(bits, int(bits // 16) ** 2)
 
         def forward(self, x, flip):
             if flip:
@@ -128,16 +142,14 @@ class CIBHash_D(nn.Module):
     multiplier: torch.LongTensor
     permIdx: torch.LongTensor
 
-    def __init__(self, bits: int, _lambda: float, temperature: float):
-        super().__init__()
+    def __init__(self, bits: int, gamma: float, temperature: float):
+        super().__init__(gamma, temperature, bits)
         self.bits = bits
-        self._lambda = _lambda
-        self.bitFlip = self._randomBitFlip(bits, int(bits // 32) ** 2)
+        self.bitFlip = self._randomBitFlip(bits, int(bits // 16) ** 2)
         self.mapper = self._mapNet(bits)
         self.register_buffer("multiplier", (2 ** torch.arange(8)).long())
         self.register_buffer("permIdx", torch.randperm(bits))
         self.m = bits // 8
-        self.temperature = temperature
 
     @property
     def BitFlip(self) -> int:
@@ -155,71 +167,82 @@ class CIBHash_D(nn.Module):
         # self.mapper.reset()
 
     def epochFinish(self, step: int, epoch: int, *_, logger, **__):
-        logger.debug("Call `CSQ_D.epochFinish()`.")
-        if epoch:
-            logger.debug("Reset permutation index in `CSQ_D`.")
+        logger.debug("Call `%s.epochFinish()`.", self._get_name())
+        if True:
+            logger.debug("Reset permutation index in `%s`.", self._get_name())
             self.reset()
 
-    def mappingAndEntropy(self, z: torch.Tensor, y: torch.Tensor):
-        # X are permuted on last dim according to permIdx
-        z = z[:, self.permIdx]
-
-        originalX = z.clone().detach()
-        # [N, M * 256]
-        decimalHat = self.mapper(z.detach(), True)
-        # M * [N, 256]
-        splitted = torch.chunk(decimalHat, self.m, -1)
-        rawSplit = torch.chunk(self.bitFlip(originalX), self.m, -1)
+    def mappingAndEntropy(self, left: torch.Tensor, right: torch.Tensor, **_):
 
         mapLoss = list()
         hitRate = list()
 
-        for subX, rawSubX in zip(splitted, rawSplit):
+        regLoss = list()
+        resultDict = {}
+
+
+        # X are permuted on last dim according to permIdx
+        left = left[:, self.permIdx]
+        right = right[:, self.permIdx]
+
+
+        originalLeft = left.clone().detach()
+        leftDec = self.mapper(left.detach(), True)
+        leftSplit = torch.chunk(leftDec, self.m, -1)
+        leftRawSplit = torch.chunk(self.bitFlip(originalLeft), self.m, -1)
+
+        for subX, rawSubX in zip(leftSplit, leftRawSplit):
             binary = rawSubX > 0
             target = (self.multiplier * binary).sum(-1)
             mapLoss.append(F.cross_entropy(subX, target))
             hitRate.append((subX.argmax(-1) == target).float().mean())
 
-        netLoss = list()
-        decimalHatGrad = self.mapper(z, False)
+        originalRight = right.clone().detach()
+        rightDec = self.mapper(right.detach(), True)
+        rightSplit = torch.chunk(rightDec, self.m, -1)
+        rightRawSplit = torch.chunk(self.bitFlip(originalRight), self.m, -1)
+
+        for subX, rawSubX in zip(rightSplit, rightRawSplit):
+            binary = rawSubX > 0
+            target = (self.multiplier * binary).sum(-1)
+            mapLoss.append(F.cross_entropy(subX, target))
+            hitRate.append((subX.argmax(-1) == target).float().mean())
+
+
+
+        leftDecGrad = self.mapper(left, False)
         # M * [N, 256]
-        splitted = torch.chunk(decimalHatGrad, self.m, -1)
+        leftSplitted = torch.chunk(leftDecGrad, self.m, -1)
 
-        resultDict = {}
+        rightDecGrad = self.mapper(right, False)
+        # M * [N, 256]
+        rightSplitted = torch.chunk(rightDecGrad, self.m, -1)
 
-        for i, subX in enumerate(splitted):
-            intraEntropy = list()
-            for label in torch.unique(y):
-                thisLabelOutputs = subX[y == label]
-                # [1, 256]
-                logits = thisLabelOutputs.mean(0, keepdim=True)
-                # [1] -> []
-                intraEntropy.append(Categorical(logits=logits).entropy().sum())
-            interEntropy = Categorical(logits=subX.mean(0, keepdim=True)).entropy().sum()
-            netLoss.append(-interEntropy + self._lambda * sum(intraEntropy))
-            resultDict.update({f"intra_{i}": sum(intraEntropy), f"inter_{i}": interEntropy})
+        for i, (leftSub, rightSub) in enumerate(zip(leftSplitted, rightSplitted)):
+            # [1, 256]
+            leftDistribution = Categorical(logits=leftSub)
+            rightDistribution = Categorical(logits=rightSub)
+            # [1] -> []
+            intraEntropy = ((kl_divergence(leftDistribution, rightDistribution) + kl_divergence(rightDistribution, leftDistribution)) / 2).mean()
+            interEntropy = Categorical(probs=torch.cat((leftSub, rightSub)).softmax(-1).mean(0, keepdim=True)).entropy().mean()
+            regLoss.append(-interEntropy + intraEntropy)
+            resultDict.update({f"intra_{i}": intraEntropy, f"inter_{i}": interEntropy})
 
-        netLoss = sum(netLoss)
+        regLoss = sum(regLoss)
         mapLoss = sum(mapLoss)
 
-        resultDict.update({ "netLoss": netLoss, "mapLoss": mapLoss, "hitRate": sum(hitRate) / self.m })
+        resultDict.update({ "regLoss": regLoss, "mapLoss": mapLoss, "hitRate": sum(hitRate) / self.m })
 
-        return netLoss + mapLoss, resultDict
+        return mapLoss + 1e2 * regLoss, resultDict
 
 
-    def forward(self, *, b: torch.Tensor, z: torch.Tensor, y: torch.Tensor, **_):
-        # [N, N]
-        logits = (b @ b.T) / self.temperature
-        # [N, N]
-        affinity = (y[..., None] == y).float()
-        # [N, N]
-        mask = ~torch.eye(len(b), dtype=torch.bool, device=b.device)
-        # [N, N-1]
-        similarity = logits[mask].reshape(len(b), -1)
-        # [N, N-1]
-        affinity = affinity[mask].reshape(len(b), -1)
-        loss = F.cross_entropy(similarity, affinity.argmax(-1))
+    def forward(self, *, z: torch.Tensor, b: torch.Tensor, y: torch.Tensor, **_):
+        left, right = self.splitFeatureInTwoViews(z, y)
+        jsLoss = self.jsLoss(left, right)
+        regLoss, resultDict = self.mappingAndEntropy(left, right)
 
-        auxiliary, resultDict = self.mappingAndEntropy(z, y)
-        resultDict.update({"baseLoss": loss.mean()})
-        return loss.mean() + auxiliary, resultDict
+        left, right = self.splitFeatureInTwoViews(b, y)
+        contrastiveLoss = self.contrastiveLoss(left, right)
+        loss = self.gamma * jsLoss + contrastiveLoss
+        resultDict.update({ "jsLoss": jsLoss, "contrastiveLoss": contrastiveLoss })
+        return loss + regLoss, resultDict

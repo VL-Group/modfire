@@ -13,16 +13,16 @@ model:
       #     params:
       #       initValue: 1.0
 train:
-  earlyStop: 100
-  epoch: 100
-  valFreq: 25
-  numReturns: -1
+  earlyStop: 5
+  epoch: 1000
+  valFreq: 50
+  numReturns: 1000
   trainer: BaseTrainer
   trainSet:
     key: CIFAR10
     params:
       root: data/easy/cifar10/
-      batchSize: 384
+      batchSize: 256
       mode: Train
     pipeline:
       key: SelfSupervisedTrainingDataPipe
@@ -44,24 +44,25 @@ train:
   criterion:
     key: CIBHash
     params:
-      temperature: 0.07
+      temperature: 0.3
       gamma: 0.001
+      bits: 32
   externalLib: []
     # - some/modules/to/be/registered1.py
     # - some/modules/to/be/registered2.py
   optim:
     key: Lamb
     params:
-      lr: 1.e-3
+      lr: 1.e-4
       # for Lamb: 0.01, for others: 1e-4
       weight_decay: 0.01
   schdr:
     key: CosineAnnealingLRWarmUp
     params:
-      epoch: 100
-      warmupEpoch: 5
+      epoch: 1000
+      warmupEpoch: 25
       warmupDecay: 1.e-2
   gpu:
     gpus: 1
-    vRam: -1
+    vRam: 18000
     wantsMore: false

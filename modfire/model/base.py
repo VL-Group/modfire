@@ -6,6 +6,7 @@ import math
 from rich.progress import Progress
 import torch
 from torch import nn
+from torch.cuda.amp.autocast_mode import autocast
 from torchdata.dataloader2 import DataLoader2, MultiProcessingReadingService
 from vlutils.base import Registry
 
@@ -90,15 +91,15 @@ class BinaryWrapper(BaseWrapper):
         """
         return (x.reshape(*x.shape[:-1], -1, 8) * self._byteTemplate).sum(-1).byte()
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def add(self, database: Database, progress: Optional[Progress] = None):
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=len(database), progress=f" {0:.1f}k", suffix="")
-        with DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16))) as dataLoader:
+        with DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16))) as dataLoader, autocast():
             total = 0
             for idx, image in dataLoader:
                 # [N, bits]
-                h = self.encode(image.to(self._dummy.device, non_blocking=True))
+                h = self.encode(image.to(self._dummy.device, non_blocking=True, memory_format=torch.channels_last))
                 self.database.add(h.cpu().numpy(), idx.cpu().numpy())
                 increment = len(h)
                 total += increment
@@ -107,22 +108,22 @@ class BinaryWrapper(BaseWrapper):
         if progress is not None:
             progress.remove_task(task)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def remove(self, ids: torch.Tensor):
         return self.database.remove(ids.numpy())
 
     def reset(self):
         return self.database.reset()
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:.1f}k", suffix="")
-        with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader:
+        with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader, autocast():
             total = 0
             for idx, image in dataLoader:
                 # [N, bits]
-                h = self.encode(image.to(self._dummy.device, non_blocking=True))
+                h = self.encode(image.to(self._dummy.device, non_blocking=True, memory_format=torch.channels_last))
                 increment = len(h)
                 total += increment
                 if progress is not None:
@@ -147,15 +148,15 @@ class PQWrapper(BaseWrapper):
     def updateCodebook(self):
         self.database.assignCodebook(self.codebook.cpu().detach().numpy())
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def add(self, database: Database, progress: Optional[Progress] = None):
         if progress is not None:
             task = progress.add_task(f"[ Index ]", total=len(database), progress=f" {0:.1f}k", suffix="")
-        with DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16))) as dataLoader:
+        with DataLoader2(database.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(database.BatchSize)), 16))) as dataLoader, autocast():
             total = 0
             for idx, image in dataLoader:
                 # [N, D]
-                x = self.encode(image.to(self._dummy.device, non_blocking=True))
+                x = self.encode(image.to(self._dummy.device, non_blocking=True, memory_format=torch.channels_last))
                 self.database.add(x.cpu().numpy(), idx.cpu().numpy())
                 increment = len(x)
                 total += increment
@@ -164,7 +165,7 @@ class PQWrapper(BaseWrapper):
         if progress is not None:
             progress.remove_task(task)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def remove(self, ids: torch.Tensor):
         return self.database.remove(ids.numpy())
 
@@ -172,15 +173,15 @@ class PQWrapper(BaseWrapper):
         self.updateCodebook()
         return self.database.reset()
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def search(self, queries: QuerySplit, numReturns: int, progress: Optional[Progress] = None) -> Iterator[Tuple[torch.Tensor, torch.Tensor]]:
         if progress is not None:
             task = progress.add_task(f"[ Query ]", total=len(queries), progress=f" {0:.1f}k", suffix="")
-        with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader:
+        with DataLoader2(queries.DataPipe, reading_service=MultiProcessingReadingService(num_workers=min(int(math.sqrt(queries.BatchSize)), 16))) as dataLoader, autocast():
             total = 0
             for idx, image in dataLoader:
                 # [D]
-                x = self.encode(image.to(self._dummy.device, non_blocking=True))
+                x = self.encode(image.to(self._dummy.device, non_blocking=True, memory_format=torch.channels_last))
                 increment = len(x)
                 total += increment
                 if progress is not None:

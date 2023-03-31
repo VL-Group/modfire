@@ -147,9 +147,9 @@ class GumbelPQ(PQLayer):
 
 @ModelRegistry.register
 class PQModel(PQWrapper):
-    def __init__(self, m: int, k: int, d: int, intraNormalization: bool, backbone: str, pqMethod: str, *args, **kwArgs):
+    def __init__(self, m: int, k: int, d: int, intraNormalization: bool, backbone: str, pqMethod: str, pretrained: bool = True, *args, **kwArgs):
         super().__init__(m, k, d)
-        self._backbone = Backbone(m, d, intraNormalization, backbone)
+        self._backbone = Backbone(m, d, intraNormalization, backbone, pretrained)
         self._pqMethod = PQRegistry.get(pqMethod)(self.codebook, *args, **kwArgs)
 
     def step(self):
