@@ -188,7 +188,11 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
         for subX, rawSubX in zip(splitted, rawSplit):
             binary = rawSubX > 0
             target = (self.multiplier * binary).sum(-1)
-            mapLoss.append(F.cross_entropy(subX, target))
+
+            reverse = self.bitFlip(rawSubX) <= 0
+            reverse = (self.multiplier * reverse).sum(-1)
+
+            mapLoss.append(F.cross_entropy(subX, target) - F.cross_entropy(subX, reverse, reduction='none').clamp_max(16).mean())
             hitRate.append((subX.argmax(-1) == target).float().mean())
 
         hashCenter = self.centroids[:, self.permIdx].clone().detach()
@@ -211,6 +215,7 @@ class CSQ_D(CSQ, modfire.train.hooks.EpochFinishHook):
             targetCenter = (targetCenter * self.multiplier).sum(-1)
             # calculate ce from x to all centers
             # [N, 256, class]
+            # use this to support multi-label
             xToAllCenter = subX[..., None].expand(*subX.shape, numClasses)
 
             # [N, class]

@@ -1,6 +1,7 @@
 import logging
 
 import torch
+import torch.distributed as dist
 from torch import nn
 import torch.nn.functional as F
 from torch.distributions import Categorical, Bernoulli, kl_divergence
@@ -14,73 +15,7 @@ logger = logging.getLogger(Consts.Root)
 
 
 @CriterionRegistry.register
-class CIBHash(nn.Module):
-    def __init__(self, gamma: float, temperature: float, bits: int):
-        super().__init__()
-        self.temperature = temperature
-        self.gamma = gamma
-
-    def jsLoss(self, left, right):
-        left = Bernoulli(logits=left)
-        right = Bernoulli(logits=right)
-        return ((kl_divergence(left, right) + kl_divergence(right, left)) / 2).mean()
-
-    def splitFeatureInTwoViews(self, z: torch.Tensor, y: torch.Tensor):
-        idx = torch.arange(len(z)).reshape(-1, 2)
-        return z[idx[:, 0]], z[idx[:, 1]]
-        # [?]
-        uniqueLabels = torch.unique(y)
-        lefts = list()
-        rights = list()
-        for l in uniqueLabels:
-            matched = y == l
-            matchedIdx = torch.nonzero(matched)
-            left, right = matchedIdx[0], matchedIdx[1]
-            lefts.append(left)
-            rights.append(right)
-        return z[torch.cat(lefts)], z[torch.cat(rights)]
-
-    def contrastiveLoss(self, left: torch.Tensor, right: torch.Tensor):
-        left = left.tanh()
-        right = right.tanh()
-
-        left = (left.sign() - left).detach() + left
-        right = (right.sign() - right).detach() + right
-
-
-        batchSize = len(left)
-        N = 2 * batchSize
-        z = torch.cat((left, right))
-
-        cosine = z @ z.T
-
-        sim = cosine / self.temperature
-
-        simIJ = sim.diagonal(batchSize)
-        simJI = sim.diagonal(-batchSize)
-
-        mask = (~torch.eye(N, dtype=torch.bool))
-
-        upper, lower = mask.diagonal(batchSize), mask.diagonal(-batchSize)
-        upper.copy_(False)
-        lower.copy_(False)
-
-
-        positives = torch.cat((simIJ, simJI)).reshape(N, 1)
-        negatives = sim[mask].reshape(N, -1)
-        logits = torch.cat((positives, negatives), -1)
-        loss = F.cross_entropy(logits, torch.zeros(N, device=logits.device, dtype=torch.long))
-        return loss
-
-    def forward(self, *, z: torch.Tensor, b: torch.Tensor, y: torch.Tensor, **_):
-        left, right = self.splitFeatureInTwoViews(z, y)
-        jsLoss = self.jsLoss(left, right)
-        contrastiveLoss = self.contrastiveLoss(left, right)
-        loss = self.gamma * jsLoss + contrastiveLoss
-        return loss, { "jsLoss": jsLoss, "contrastiveLoss": contrastiveLoss }
-
-@CriterionRegistry.register
-class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
+class TestContrastive(nn.Module, modfire.train.hooks.EpochFinishHook, AllReduce):
     # NOTE: A very interesting thing:
     #       Even if we don't train the mapNet
     #       The Hashing performance is still very high.
@@ -107,6 +42,7 @@ class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
             template = template[torch.randperm(len(template))]
             self.template.copy_(template.to(self.template.device))
 
+        @torch.no_grad()
         def forward(self, x):
             # [N, D]
             rand = torch.rand_like(x, dtype=torch.float)
@@ -128,7 +64,7 @@ class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
                 nn.Linear(256, 256)
             )
             self._net = nn.ModuleList(ffnNet() for _ in range(bits // 8))
-            self._bitFlip = CIBHash_D._randomBitFlip(bits, int(bits // 16) ** 2)
+            self._bitFlip = TestContrastive._randomBitFlip(bits, int(bits // 16) ** 2)
 
         def forward(self, x, flip):
             if flip:
@@ -143,13 +79,15 @@ class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
     permIdx: torch.LongTensor
 
     def __init__(self, bits: int, gamma: float, temperature: float):
-        super().__init__(gamma, temperature, bits)
+        super().__init__()
         self.bits = bits
         self.bitFlip = self._randomBitFlip(bits, int(bits // 16) ** 2)
         self.mapper = self._mapNet(bits)
         self.register_buffer("multiplier", (2 ** torch.arange(8)).long())
         self.register_buffer("permIdx", torch.randperm(bits))
         self.m = bits // 8
+        self._worldSize = dist.get_world_size()
+        self._rank = dist.get_rank()
 
     @property
     def BitFlip(self) -> int:
@@ -172,12 +110,26 @@ class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
             logger.debug("Reset permutation index in `%s`.", self._get_name())
             self.reset()
 
-    def mappingAndEntropy(self, left: torch.Tensor, right: torch.Tensor, **_):
+    def splitFeatureInTwoViews(self, z: torch.Tensor, y: torch.Tensor):
+        idx = torch.arange(len(z)).reshape(-1, 2)
+        return z[idx[:, 0]], z[idx[:, 1]]
+        # [?]
+        uniqueLabels = torch.unique(y)
+        lefts = list()
+        rights = list()
+        for l in uniqueLabels:
+            matched = y == l
+            matchedIdx = torch.nonzero(matched)
+            left, right = matchedIdx[0], matchedIdx[1]
+            lefts.append(left)
+            rights.append(right)
+        return z[torch.cat(lefts)], z[torch.cat(rights)]
+
+    def mapping(self, left: torch.Tensor, right: torch.Tensor, **_):
 
         mapLoss = list()
         hitRate = list()
 
-        regLoss = list()
         resultDict = {}
 
 
@@ -194,7 +146,11 @@ class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
         for subX, rawSubX in zip(leftSplit, leftRawSplit):
             binary = rawSubX > 0
             target = (self.multiplier * binary).sum(-1)
-            mapLoss.append(F.cross_entropy(subX, target))
+
+            reverse = self.bitFlip(rawSubX) <= 0
+            reverse = (self.multiplier * reverse).sum(-1)
+
+            mapLoss.append(F.cross_entropy(subX, target) - F.cross_entropy(subX, reverse, reduction='none').clamp_max(16).mean())
             hitRate.append((subX.argmax(-1) == target).float().mean())
 
         originalRight = right.clone().detach()
@@ -205,44 +161,104 @@ class CIBHash_D(CIBHash, modfire.train.hooks.EpochFinishHook):
         for subX, rawSubX in zip(rightSplit, rightRawSplit):
             binary = rawSubX > 0
             target = (self.multiplier * binary).sum(-1)
-            mapLoss.append(F.cross_entropy(subX, target))
+
+            reverse = self.bitFlip(rawSubX) <= 0
+            reverse = (self.multiplier * reverse).sum(-1)
+
+            mapLoss.append(F.cross_entropy(subX, target) - F.cross_entropy(subX, reverse, reduction='none').clamp_max(16).mean())
             hitRate.append((subX.argmax(-1) == target).float().mean())
 
 
+        mapLoss = sum(mapLoss)
+
+        resultDict.update({ "mapLoss": mapLoss, "hitRate": sum(hitRate) / self.m })
+
+        return mapLoss, resultDict
+
+    def contrastive(self, left: torch.Tensor, right: torch.Tensor):
+        regLoss = list()
+        swapLoss = list()
+        rejectLoss = list()
+        resultDict = dict()
+        # X are permuted on last dim according to permIdx
+        left = left[:, self.permIdx]
+        right = right[:, self.permIdx]
+
+        originalLeft = left.clone().detach()
+        originalRight = right.clone().detach()
 
         leftDecGrad = self.mapper(left, False)
         # M * [N, 256]
         leftSplitted = torch.chunk(leftDecGrad, self.m, -1)
+        leftRawSplit = torch.chunk(self.bitFlip(originalLeft), self.m, -1)
 
         rightDecGrad = self.mapper(right, False)
         # M * [N, 256]
         rightSplitted = torch.chunk(rightDecGrad, self.m, -1)
+        rightRawSplit = torch.chunk(self.bitFlip(originalRight), self.m, -1)
 
-        for i, (leftSub, rightSub) in enumerate(zip(leftSplitted, rightSplitted)):
-            # [1, 256]
-            leftDistribution = Categorical(logits=leftSub)
-            rightDistribution = Categorical(logits=rightSub)
+        N = len(left)
+        batchSize = 2 * len(left)
+
+        mask = (~torch.eye(batchSize, dtype=torch.bool))
+
+        upper, lower = mask.diagonal(N), mask.diagonal(-N)
+        upper.copy_(False)
+        lower.copy_(False)
+
+        for i, (leftSub, rightSub, leftRawSub, rightRawSub) in enumerate(zip(leftSplitted, rightSplitted, leftRawSplit, rightRawSplit)):
+            # [N]
+            leftCode =  (self.multiplier * (leftRawSub > 0)).sum(-1)
+            rightCode = (self.multiplier * (rightRawSub > 0)).sum(-1)
+
+            # [2N]
+            allCodes = torch.cat((leftCode, rightCode))
+            # [2N, 256]
+            allLogits = torch.cat((leftSub, rightSub))
+            # [2N, 256]
+            allLogits = -allLogits.log_softmax(-1)
+
+            allCodesList = [torch.empty_like(allCodes) for _ in range(self._worldSize)]
+            allLogitsList = [torch.empty_like(allLogits) for _ in range(self._worldSize)]
+
+            ###################### Collect Across All GPUs ######################
+            dist.all_gather(allCodesList, allCodes)
+
+            # replace tensor slice of current group to the one that has gradients
+            allLogitsList[self._rank] = allLogits
+
+            # [2N * worldSize]
+            allCodes = torch.cat(allCodesList)
+            # [2N * worldSize, 256]
+            allCodes = F.one_hot(allCodes, num_classes=256).float()
+            # [2N * worldSize, 256]
+            allLogits = torch.cat(allLogitsList)
+
+            # [2N, 2N]
+            loss = allLogits @ allCodes.T
+
+            swapLoss.append(loss.diagonal(N).mean() + loss.diagonal(-N).mean())
+
+            rejectLoss.append(-loss[mask].sum() / N)
+
+
             # [1] -> []
-            intraEntropy = ((kl_divergence(leftDistribution, rightDistribution) + kl_divergence(rightDistribution, leftDistribution)) / 2).mean()
             interEntropy = Categorical(probs=torch.cat((leftSub, rightSub)).softmax(-1).mean(0, keepdim=True)).entropy().mean()
-            regLoss.append(-interEntropy + intraEntropy)
-            resultDict.update({f"intra_{i}": intraEntropy, f"inter_{i}": interEntropy})
+            regLoss.append(-interEntropy)
+            resultDict.update({f"reg_{i}": -interEntropy, f"swap_{i}": swapLoss[-1], f"reject_{i}": rejectLoss[-1]})
 
         regLoss = sum(regLoss)
-        mapLoss = sum(mapLoss)
+        swapLoss = sum(swapLoss)
+        rejectLoss = sum(rejectLoss)
 
-        resultDict.update({ "regLoss": regLoss, "mapLoss": mapLoss, "hitRate": sum(hitRate) / self.m })
-
-        return mapLoss + 1e2 * regLoss, resultDict
+        return regLoss + swapLoss + rejectLoss, resultDict
 
 
     def forward(self, *, z: torch.Tensor, b: torch.Tensor, y: torch.Tensor, **_):
         left, right = self.splitFeatureInTwoViews(z, y)
-        jsLoss = self.jsLoss(left, right)
-        regLoss, resultDict = self.mappingAndEntropy(left, right)
+        mapLoss, resultDict = self.mapping(left, right)
 
-        left, right = self.splitFeatureInTwoViews(b, y)
-        contrastiveLoss = self.contrastiveLoss(left, right)
-        loss = self.gamma * jsLoss + contrastiveLoss
-        resultDict.update({ "jsLoss": jsLoss, "contrastiveLoss": contrastiveLoss })
-        return loss + regLoss, resultDict
+        trainLoss, resultDict1 = self.contrastive(left, right)
+
+        resultDict.update(resultDict1)
+        return mapLoss + trainLoss, resultDict
