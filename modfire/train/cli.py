@@ -39,9 +39,11 @@ def main(debug: bool, quiet: bool, resume: pathlib.Path, configPath: pathlib.Pat
     gpus = queryGPU(needGPUs=config.Train.GPU.GPUs, wantsMore=config.Train.GPU.WantsMore, needVRamEachGPU=(config.Train.GPU.VRam + 256) if config.Train.GPU.VRam > 0 else -1, writeOSEnv=True)
     worldSize = len(gpus)
 
+    port = random.choice(range(10000, 60000))
+
     # `daemon` is True --- Way to handle SIGINT globally.
     # Give up handling SIGINT by yourself... PyTorch hacks it.
-    mp.spawn(ddpSpawnTraining, (worldSize, config, resume, loggingLevel), worldSize, daemon=True)
+    mp.spawn(ddpSpawnTraining, (worldSize, port, config, resume, loggingLevel), worldSize, daemon=True)
     return 0
 
 

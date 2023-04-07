@@ -16,12 +16,13 @@ from modfire import Consts
 from .trainer import TrainerBuilder
 
 
-def initializeBaseConfigs(rank: int, worldSize: int, configHash: str, logger: Union[logging.Logger, LoggerBase] = logging.root):
-    # The http socket method fails in some rare cases, we switch to use file
-    # os.environ["MASTER_ADDR"] = "127.0.0.1"
-    # os.environ["MASTER_PORT"] = port
-    # logger.debug("DDP master addr: `%s`", "127.0.0.1")
-    # logger.debug("DDP master port: `%s`", port)
+def initializeBaseConfigs(rank: int, worldSize: int, port: int, logger: Union[logging.Logger, LoggerBase] = logging.root):
+    # WARNING: The http socket method fails in some rare cases
+    os.environ["MASTER_ADDR"] = "127.0.0.1"
+    os.environ["MASTER_PORT"] = str(port)
+    logger.debug("DDP master addr: `%s`", "127.0.0.1")
+    logger.debug("DDP master port: `%s`", port)
+
     torch.cuda.set_device(rank)
     torch.autograd.set_detect_anomaly(False)
     # True or False? It depends.
@@ -32,24 +33,27 @@ def initializeBaseConfigs(rank: int, worldSize: int, configHash: str, logger: Un
     # torch.backends.cudnn.deterministic = True # invert with benchmark
 
     logger.debug("Autograd detect anomaly = `%s`", False)
-    logger.debug("         CuDNN bechmark = `%s`", True)
+    logger.debug("         CuDNN bechmark = `%s`", torch.backends.cudnn.benchmark)
     torch.manual_seed(3407)
     torch.cuda.manual_seed_all(3407)
     random.seed(3407)
     np.random.seed(3407)
     logger.debug("            Random seed = `%d`", 3407)
 
-    swapFilePath = os.path.join(Consts.TempDir, f"__modfire_train_ddp_rpc_swap_file_{configHash}")
-    try:
-        os.remove(swapFilePath)
-    except:
-        pass
+    # The file method causes stuck. Abandon.
+    # swapFilePath = os.path.join(Consts.TempDir, f"__modfire_train_ddp_rpc_swap_file_{configHash}")
+    # try:
+    #     os.remove(swapFilePath)
+    # except:
+    #     pass
 
-    dist.init_process_group("nccl", world_size=worldSize, rank=rank, init_method=f"file://{os.path.abspath(swapFilePath)}")
+    # dist.init_process_group("nccl", world_size=worldSize, rank=rank, init_method=f"file://{os.path.abspath(swapFilePath)}")
+
+    dist.init_process_group("nccl", world_size=worldSize, rank=rank, init_method="env://")
     logger.debug("Process group = `%s`, world size = `%d`", "NCCL", worldSize)
     torch.set_printoptions(precision=1, threshold=4, edgeitems=1, sci_mode=False)
 
-def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.Path, loggingLevel: int):
+def ddpSpawnTraining(rank: int, worldSize: int, port: int, config: Config, resume: pathlib.Path, loggingLevel: int):
     # load ckpt before create trainer, in case it moved to other place.
     if resume is not None:
         if rank == 0:
@@ -60,7 +64,7 @@ def ddpSpawnTraining(rank: int, worldSize: int, config: Config, resume: pathlib.
         tmpFile = None
 
     logging.debug("Creating the world...")
-    initializeBaseConfigs(rank, worldSize, hex(hash(str(config.serialize())))[3:])
+    initializeBaseConfigs(rank, worldSize, port)
     logging.debug("Base configs initialized.")
 
     dist.barrier()

@@ -15,7 +15,7 @@ logger = logging.getLogger(Consts.Root)
 
 
 @CriterionRegistry.register
-class TestContrastive(nn.Module, modfire.train.hooks.EpochFinishHook, AllReduce):
+class TestContrastive(nn.Module, modfire.train.hooks.EpochFinishHook):
     # NOTE: A very interesting thing:
     #       Even if we don't train the mapNet
     #       The Hashing performance is still very high.

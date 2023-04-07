@@ -64,6 +64,6 @@ train:
       warmupEpoch: 5
       warmupDecay: 1.e-2
   gpu:
-    gpus: 1
-    vRam: 19000
+    gpus: 4
+    vRam: 10
     wantsMore: false
