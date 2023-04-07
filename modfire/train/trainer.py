@@ -290,7 +290,7 @@ class PalTrainer(Restorable):
         self.saver.debug("End call `_afterRun()`.")
 
     def _stepStart(self, hook, *args, **kwArgs) -> Dict[str, Any]:
-        return hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
+        return hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs) or dict()
 
     def _stepFinish(self, hook, *args, loss, **kwArgs):
         self._step += 1
