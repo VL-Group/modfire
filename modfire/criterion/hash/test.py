@@ -197,49 +197,54 @@ class TestContrastive(nn.Module, modfire.train.hooks.EpochFinishHook):
         rightSplitted = torch.chunk(rightDecGrad, self.m, -1)
         rightRawSplit = torch.chunk(self.bitFlip(originalRight), self.m, -1)
 
-        N = len(left)
-        batchSize = 2 * len(left)
-
-        mask = (~torch.eye(batchSize, dtype=torch.bool))
-
-        upper, lower = mask.diagonal(N), mask.diagonal(-N)
-        upper.copy_(False)
-        lower.copy_(False)
 
         for i, (leftSub, rightSub, leftRawSub, rightRawSub) in enumerate(zip(leftSplitted, rightSplitted, leftRawSplit, rightRawSplit)):
             # [N]
             leftCode =  (self.multiplier * (leftRawSub > 0)).sum(-1)
             rightCode = (self.multiplier * (rightRawSub > 0)).sum(-1)
 
+            swapLoss.append(F.cross_entropy(leftSub, rightCode) + F.cross_entropy(rightSub, leftCode))
+
             # [2N]
-            allCodes = torch.cat((leftCode, rightCode))
+            # allCodes = torch.cat((leftCode, rightCode))
             # [2N, 256]
             allLogits = torch.cat((leftSub, rightSub))
             # [2N, 256]
-            allLogits = -allLogits.log_softmax(-1)
+            # allLogits = -allLogits.log_softmax(-1)
 
-            allCodesList = [torch.empty_like(allCodes) for _ in range(self._worldSize)]
+            # allCodesList = [torch.empty_like(allCodes) for _ in range(self._worldSize)]
             allLogitsList = [torch.empty_like(allLogits) for _ in range(self._worldSize)]
 
             ###################### Collect Across All GPUs ######################
-            dist.all_gather(allCodesList, allCodes)
+            # dist.all_gather(allCodesList, allCodes)
+            dist.all_gather(allLogitsList, allLogits)
 
             # replace tensor slice of current group to the one that has gradients
             allLogitsList[self._rank] = allLogits
 
             # [2N * worldSize]
-            allCodes = torch.cat(allCodesList)
+            # allCodes = torch.cat(allCodesList)
             # [2N * worldSize, 256]
-            allCodes = F.one_hot(allCodes, num_classes=256).float()
+            # allCodes = F.one_hot(allCodes, num_classes=256).float()
             # [2N * worldSize, 256]
             allLogits = torch.cat(allLogitsList)
+            probs = allLogits.softmax(-1)
+            logProbs = allLogits.log_softmax(-1)
 
-            # [2N, 2N]
-            loss = allLogits @ allCodes.T
+            # [2N * worldSize, 2N * worldSize]
+            kl_divergence = -(probs @ logProbs.T)
 
-            swapLoss.append(loss.diagonal(N).mean() + loss.diagonal(-N).mean())
 
-            rejectLoss.append(-(loss[mask].clamp_max(12)).sum() / N)
+            N = len(kl_divergence) // 2
+            batchSize = len(kl_divergence)
+
+            mask = (~torch.eye(batchSize, dtype=torch.bool))
+
+            upper, lower = mask.diagonal(N), mask.diagonal(-N)
+            upper.copy_(False)
+            lower.copy_(False)
+
+            rejectLoss.append(-(kl_divergence[mask].clamp_max(16)).mean())
 
 
             # [1] -> []
@@ -251,7 +256,7 @@ class TestContrastive(nn.Module, modfire.train.hooks.EpochFinishHook):
         swapLoss = sum(swapLoss)
         rejectLoss = sum(rejectLoss)
 
-        return regLoss + swapLoss + rejectLoss, resultDict
+        return regLoss + swapLoss + 1.2 * rejectLoss, resultDict
 
 
     def forward(self, *, z: torch.Tensor, b: torch.Tensor, y: torch.Tensor, **_):

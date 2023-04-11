@@ -20,6 +20,11 @@ def checkArgs(debug, quiet, resume: pathlib.Path, configPath: pathlib.Path):
         return logging.DEBUG
     return logging.INFO
 
+def portInUse(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
 def main(debug: bool, quiet: bool, resume: pathlib.Path, configPath: pathlib.Path) -> int:
     assert False, "You need to run `modfire train` with Python optimized-mode. Try re-run me with `python -O -m modfire.train ...`"
     loggingLevel = checkArgs(debug, quiet, resume, configPath)
@@ -39,7 +44,10 @@ def main(debug: bool, quiet: bool, resume: pathlib.Path, configPath: pathlib.Pat
     gpus = queryGPU(needGPUs=config.Train.GPU.GPUs, wantsMore=config.Train.GPU.WantsMore, needVRamEachGPU=(config.Train.GPU.VRam + 256) if config.Train.GPU.VRam > 0 else -1, writeOSEnv=True)
     worldSize = len(gpus)
 
-    port = random.choice(range(10000, 60000))
+    while True:
+        port = random.choice(range(10000, 60000))
+        if not portInUse(port):
+            break
 
     # `daemon` is True --- Way to handle SIGINT globally.
     # Give up handling SIGINT by yourself... PyTorch hacks it.

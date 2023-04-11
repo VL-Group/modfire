@@ -60,10 +60,10 @@ train:
   schdr:
     key: CosineAnnealingLRWarmUp
     params:
-      epoch: 100
-      warmupEpoch: 5
+      epoch: 10000
+      warmupEpoch: 200
       warmupDecay: 1.e-2
   gpu:
-    gpus: 4
+    gpus: 1
     vRam: -1
     wantsMore: false
