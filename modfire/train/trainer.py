@@ -41,56 +41,124 @@ class TrainerBuilder(modfire.utils.registry.Registry[Callable[..., "PalTrainer"]
     pass
 
 
-class PalTrainer(Restorable):
+def _p(attr):
+    def _decorate(self):
+        msg = "[%s] " + attr
+        return msg, self.PrettyStep
+    return property(_decorate)
+
+class LoggingTemplate:
+    def __init__(self):
+        self._step = 0
+        self._prettyStep = PrettyStep()
+
+    @property
+    def PrettyStep(self):
+        return self._prettyStep(self._step)
+
+
+    ########### Templates ###########
+    _LOG_InitSummary   = _p("Here is the whole config during this run: \r\n%s")
+    _LOG_Bye           = _p("Bye.")
+    _LOG_FindCkpt      = _p("Found ckpt to resume at %s")
+    _LOG_ResumeAtEpoch = _p("Resume training at %d epochs.")
+    _LOG_StartTraining = _p("Start training.")
+    _LOG_RevealTensorboard = _p("See you at `%s`")
+    _LOG_EarlyStop = _p("Early stopped at epoch %4d.")
+    _LOG_SummaryInfoNomAP = _p("Total epoches: %d, total steps: %s, best mAP: N/A.")
+    _LOG_SummaryInfo = _p("Total epoches: %d, total steps: %s, best mAP: %.2f%%.")
+    _LOG_SummarySaveCkpt = _p("Model saved to %s`.")
+
+
+    _DEBUG_InitRank           = _p("<%s> is located at rank `%d`")
+    _DEBUG_Inited             = _p("<%s> created.")
+    _DEBUG_RestoreStateStart  = _p("Restored state dict from `%s`")
+    _DEBUG_RestoreStateFinish = _p("Restore network parameters finished.")
+    _DEBUG_OptimizerReset     = _p("Optimizer reset.")
+    _DEBUG_LRSchdrReset       = _p("LR scheduler reset.")
+    _DEBUG_RegistrySummary    = _p("Summary of %s: \r\n%s")
+    _DEBUG_CreateDatasetStart = _p("Create `config.Train.TrainSet` (\"%s\") with training pipeline: `%s`.")
+    _DEBUG_CreateQuerysetStart = _p("Create `config.Train.QuerySet` (\"%s\") with evaluation pipeline: `%s`.")
+    _DEBUG_CreateDatabaseStart = _p("Create `config.Train.Database` (\"%s\") with evaluation pipeline: `%s`.")
+    _DEBUG_CreateDatasetFinish = _p("Training dataset \r\n\t%s \r\nmounted.")
+    _DEBUG_CreateDatasetMainFinish = _p("Train set \r\n\t%s, \r\nquery set \r\n\t%s and \r\ndatabase \r\n\t%s \r\nmounted.")
+    _DEBUG_CreateModelStart = _p("Creating model...")
+    _DEBUG_CreateModelFinish = _p("Model created. #Params: %s.")
+    _DEBUG_CreateCriterionStart = _p("Creating criterion...")
+    _DEBUG_CreateCriterionFinish = _p("criterion created. #Params: %s.")
+    _DEBUG_CreateOptimizerStart = _p("Creating optimizer...")
+    _DEBUG_CreateOptimizerFinish = _p("Optimizer created.")
+    _DEBUG_CreateSchdrStart = _p("Creating LR scheduler...")
+    _DEBUG_CreateSchdrFinish = _p("LR scheduler created.")
+    _DEBUG_CallBeforRunStart = _p("Call `_beforeRun()`.")
+    _DEBUG_CallBeforRunFinish = _p("End call `_beforeRun()`.")
+    _DEBUG_CallAfterRunStart = _p("Call `_afterRun()`.")
+    _DEBUG_CallAfterRunFinish = _p("End call `_afterRun()`.")
+    _DEBUG_CallEpochBeginStart = _p("Epoch %4d started.")
+    _DEBUG_CallEpochBeginFinish = _p("End call `_epochStart()`.")
+    _DEBUG_CallEpochEndStart = _p("Epoch %4d finished.")
+    _DEBUG_CallEpochEndFinish = _p("End call `_epochFinish()`.")
+    _DEBUG_TrainLoopFinish = _p("Training loop finished.")
+    _DEBUG_ShowSchdrUpdate = _p("Lr is set to %.2e.")
+    _DEBUG_ShowTemperatureUpdate = _p("Temperature is set to %.2e.")
+    _DEBUG_Validation = _p("Start validation at epoch %4d.")
+    _DEBUG_FindOneEarlyStop = _p("Performance not improved for %d / %d epochs.")
+    _DEBUG_EndValidation = _p("End validation at epoch %4d.")
+
+    _CRITICAL_ProcessInterrupt = _p("Main process was interrupted, try to save necessary info.")
+    _CRITICAL_TimeoutInfo = _p("This post-process will be killed after %d secs if stuck.")
+    _CRITICAL_ShutdownMessage = _p("Find the last checkpoint at `%s`")
+
+
+class PalTrainer(Restorable, LoggingTemplate):
     def __init__(self, config: Config, loggingLevel: int):
-        super().__init__()
+        Restorable.__init__(self)
+        LoggingTemplate.__init__(self)
 
         self._epoch = 0
-        self._step = 0
 
         self.rank = dist.get_rank()
         self.worldSize = dist.get_world_size()
         torch.cuda.set_device(self.rank)
         self.config = config
         self.saver = getSaver(self.config.Train.SaveDir, saveName="saved.ckpt", config=config.serialize(), loggerName="root", reserve=False, loggingLevel=loggingLevel, disable=self.rank != 0)
-        prettyStep = PrettyStep()
-        self.saver.decorate(lambda: prettyStep(self._step))
 
-        self.saver.info("Here is the whole config during this run: \r\n%s", summary(config.serialize()))
+        self.saver.info(*self._LOG_InitSummary, summary(config.serialize()))
 
-        self.saver.debug("<%s> is located at rank `%d`", self.__class__.__name__, self.rank)
+        self.saver.debug(*self._DEBUG_InitRank, self.__class__.__name__, self.rank)
 
         # # Used for self.PrettyStep
         # self.lastFormatted = -1
-        self._preRegistration(config, self.saver)
+        self._preRegistration()
 
-        self._model = self._createModel(self.rank, self.config, self.saver)
-        self._criterion = self._createCriterion(self.rank, self.config, self.saver)
-        self._optimizer, self.optimFn = self._createOptimizer(self.config, self._model, self._criterion, self.worldSize, self.saver)
-        self._scheduler, self.schdrFn = self._createScheduler(self.config, self._optimizer, self.saver)
+        self._model = self._createModel()
+        self._criterion = self._createCriterion()
+        self._optimizer, self.optimFn = self._createOptimizer(self._model, self._criterion)
+        self._scheduler, self.schdrFn = self._createScheduler(self._optimizer)
 
         self.earlyStopFlag = torch.tensor([False]).to(self.rank)
 
-        self.saver.debug("<%s> created.", self.__class__.__name__)
+        self.saver.debug(*self._DEBUG_Inited, self.__class__.__name__)
+
 
     def save(self, path = None):
         self.saver.save(path, trainer=self, config=self.config.serialize())
 
     def done(self):
         self.saver.debug(summary(self.config.serialize()))
-        self.saver.info("Bye.")
+        self.saver.info(*self._LOG_Bye)
 
     def resume(self, path):
-        self.saver.info("Found ckpt to resume at %s", path)
+        self.saver.info(*self._LOG_FindCkpt, path)
         self.restoreStates(path)
-        self.saver.info("Resume training at %d epochs.", self._epoch)
+        self.saver.info(*self._LOG_ResumeAtEpoch, self._epoch)
 
     def restoreStates(self, path: StrPath):
-        self.saver.debug("Restored state dict from `%s`", path)
+        self.saver.debug(*self._DEBUG_RestoreStateStart, path)
         self.saver.load(path, "cpu", logger=self.saver, trainer=self)
-        self.saver.debug("Restore network parameters finished.")
+        self.saver.debug(*self._DEBUG_RestoreStateFinish)
         self.resetOptimizer()
-        self.resetScheduler(self._scheduler.last_epoch)
+        self.resetScheduler(*self._scheduler.last_epoch)
 
     def resetOptimizer(self):
         del self._optimizer
@@ -99,19 +167,19 @@ class PalTrainer(Restorable):
         for group in self._optimizer.param_groups:
             group.setdefault('initial_lr', group['lr'])
 
-        self.saver.debug("Optimizer reset.")
+        self.saver.debug(self._DEBUG_OptimizerReset)
 
     def resetScheduler(self, lastEpoch=-1):
         del self._scheduler
         self._scheduler = self.schdrFn(self._optimizer, last_epoch=lastEpoch, **self.config.Train.Schdr.Params)
-        self.saver.debug("LR scheduler reset.")
+        self.saver.debug(self._DEBUG_LRSchdrReset)
 
     def train(self):
         beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook = self._createHooks(self.config, self.saver, self._model, self._criterion)
 
         scaler = GradScaler()
 
-        datasets = self._createDatasets(self.config, self.saver)
+        datasets = self._createDatasets()
 
         # The DistributedReadingService is too slow since it use only one worker per node.
         # NOTE: cancel the comment once if the above issue is fixed.
@@ -160,9 +228,8 @@ class PalTrainer(Restorable):
         self._afterRun(afterRunHook, **datasets)
 
 
-    @staticmethod
-    def _preRegistration(config: Config, saver: Saver):
-        otherPythonFiles = config.Train.ExternalLib
+    def _preRegistration(self):
+        otherPythonFiles = self.config.Train.ExternalLib
         for pyFile in otherPythonFiles:
             filePath = pathlib.Path(pyFile).absolute()
             # md5 of abs file path as module name
@@ -177,7 +244,7 @@ class PalTrainer(Restorable):
         for reg in modfire.utils.registry.__all__:
             registry = getattr(modfire.utils.registry, reg)
             if issubclass(registry, Registry):
-                saver.debug("Summary of %s: \r\n%s", registry, registry.summary())
+                self.saver.debug(*self._DEBUG_RegistrySummary, registry, registry.summary())
 
     @staticmethod
     def _createHooks(config: Config, saver: Saver, model, criterion):
@@ -201,25 +268,23 @@ class PalTrainer(Restorable):
         epochFinishHook = checkHook(epochFinishHook, "EpochFinishHook", saver)
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
-    @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
-        saver.debug("Create `config.Train.TrainSet` (\"%s\") with training pipeline: `%s`.", config.Train.TrainSet.Key, config.Train.TrainSet.Pipeline.Key or "default")
+    def _createDatasets(self) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
+        self.saver.debug(*self._DEBUG_CreateDatasetStart, self.config.Train.TrainSet.Key, self.config.Train.TrainSet.Pipeline.Key or "default")
         try:
-            trainPipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.TrainSet.Pipeline.Key), saver)(**config.Train.TrainSet.Pipeline.Params)
+            trainPipeline = trackingFunctionCalls(DataPipeRegistry.get(self.config.Train.TrainSet.Pipeline.Key), self.saver)(**self.config.Train.TrainSet.Pipeline.Params)
         except KeyError:
             trainPipeline = None
-        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params, pipeline=trainPipeline)
-        saver.debug("Training dataset \r\n\t%s \r\nmounted.", trainSet)
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(self.config.Train.TrainSet.Key), self.saver)(**self.config.Train.TrainSet.Params, pipeline=trainPipeline)
+        self.saver.debug(*self._DEBUG_CreateDatasetFinish, trainSet)
         return {
             "trainSet": trainSet.Split
         }
 
-    @staticmethod
-    def _createModel(rank: int, config: Config, saver: Saver) -> DistributedDataParallel:
-        saver.debug("Creating model...")
-        modelFn = trackingFunctionCalls(ModelRegistry.get(config.Model.Key), saver)
+    def _createModel(self) -> DistributedDataParallel:
+        self.saver.debug(*self._DEBUG_CreateModelStart)
+        modelFn = trackingFunctionCalls(ModelRegistry.get(self.config.Model.Key), self.saver)
 
-        model = modelFn(**config.Model.Params)
+        model = modelFn(**self.config.Model.Params)
 
         # EMA model for evaluation
         # deepcopy can't handle faiss objects. reject.
@@ -229,65 +294,62 @@ class PalTrainer(Restorable):
         # modelEMA = ExponentialMovingAverage(model, device=rank, decay=1.0 - alpha)
         # EMA model for evaluation
 
-        model = DistributedDataParallel(model.to(memory_format=torch.channels_last).to(rank), device_ids=[rank], output_device=rank, find_unused_parameters=False)
+        model = DistributedDataParallel(model.to(memory_format=torch.channels_last).to(self.rank), device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False)
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        saver.debug("Model created. #Params: %s.", totalParameters(model))
+        self.saver.debug(*self._DEBUG_CreateModelFinish, totalParameters(model))
         return model
 
-    @staticmethod
-    def _createCriterion(rank: int, config: Config, saver: Saver) -> DistributedDataParallel:
-        saver.debug("Creating criterion...")
-        criterionFn = trackingFunctionCalls(CriterionRegistry.get(config.Train.Criterion.Key), saver)
-        criterion = criterionFn(**config.Train.Criterion.Params).to(rank)
+    def _createCriterion(self) -> DistributedDataParallel:
+        self.saver.debug(*self._DEBUG_CreateCriterionStart)
+        criterionFn = trackingFunctionCalls(CriterionRegistry.get(self.config.Train.Criterion.Key), self.saver)
+        criterion = criterionFn(**self.config.Train.Criterion.Params).to(self.rank)
         if any((p.requires_grad for p in criterion.parameters())):
-            criterion = DistributedDataParallel(criterion, device_ids=[rank], output_device=rank, find_unused_parameters=False)
+            criterion = DistributedDataParallel(criterion, device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False)
             criterion = torch.nn.SyncBatchNorm.convert_sync_batchnorm(criterion)
-        saver.debug("criterion created. #Params: %s.", totalParameters(criterion))
+        self.saver.debug(*self._DEBUG_CreateCriterionFinish, totalParameters(criterion))
         return criterion
 
-    @staticmethod
-    def _createOptimizer(config: Config, model: DistributedDataParallel, criterion: DistributedDataParallel, worldSize: int, saver: Saver) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
-        saver.debug("Creating optimizer...")
-        if "lr" in config.Train.Optim.Params and "batchSize" in config.Train.TrainSet.Params:
-            batchSize = config.Train.TrainSet.Params["batchSize"] * worldSize
+    def _createOptimizer(self, model: DistributedDataParallel, criterion: DistributedDataParallel) -> Tuple[torch.optim.Optimizer, Callable[..., torch.optim.Optimizer]]:
+        self.saver.debug(*self._DEBUG_CreateOptimizerStart)
+        if "lr" in self.config.Train.Optim.Params and "batchSize" in self.config.Train.TrainSet.Params:
+            batchSize = self.config.Train.TrainSet.Params["batchSize"] * self.worldSize
             exponent = math.log2(batchSize)
             scale = 3 - exponent / 2
-            optimCfg = deepcopy(config.Train.Optim)
+            optimCfg = deepcopy(self.config.Train.Optim)
             optimCfg.Params["lr"] /= (2 ** scale)
         else:
-            optimCfg = config.Train.Optim
-        optimFn = trackingFunctionCalls(OptimRegistry.get(optimCfg.Key), saver)
+            optimCfg = self.config.Train.Optim
+        optimFn = trackingFunctionCalls(OptimRegistry.get(optimCfg.Key), self.saver)
 
         # remove weight_decay in any norm layers
         paramGroup = setWeightDecay(model, optimCfg.Params["weight_decay"], 0.0) +\
                         setWeightDecay(criterion, optimCfg.Params["weight_decay"], 0.0)
 
         optimizer = optimFn(paramGroup, **optimCfg.Params)
-        saver.debug("Optimizer created.")
+        self.saver.debug(*self._DEBUG_CreateOptimizerFinish)
         return optimizer, optimFn
 
-    @staticmethod
-    def _createScheduler(config: Config, optimizer: torch.optim.Optimizer, saver: Saver) -> Tuple[torch.optim.lr_scheduler._LRScheduler, Callable[..., torch.optim.lr_scheduler._LRScheduler]]:
-        saver.debug("Creating LR scheduler...")
-        schdrFn = trackingFunctionCalls(SchdrRegistry.get(config.Train.Schdr.Key), saver)
-        scheduler = schdrFn(optimizer, **config.Train.Schdr.Params)
-        saver.debug("LR scheduler created.")
+    def _createScheduler(self, optimizer: torch.optim.Optimizer) -> Tuple[torch.optim.lr_scheduler._LRScheduler, Callable[..., torch.optim.lr_scheduler._LRScheduler]]:
+        self.saver.debug(*self._DEBUG_CreateSchdrStart)
+        schdrFn = trackingFunctionCalls(SchdrRegistry.get(self.config.Train.Schdr.Key), self.saver)
+        scheduler = schdrFn(optimizer, **self.config.Train.Schdr.Params)
+        self.saver.debug(*self._DEBUG_CreateSchdrFinish)
         return scheduler, schdrFn
 
     def _beforeRun(self, hook, *args, **kwArgs):
-        self.saver.debug("Call `_beforeRun()`.")
-        self.saver.info("Start training.")
+        self.saver.debug(*self._DEBUG_CallBeforRunStart)
+        self.saver.info(*self._LOG_StartTraining)
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
-        self.saver.info("See you at `%s`", self.saver.TensorboardURL)
-        self.saver.debug("End call `_beforeRun()`.")
+        self.saver.info(*self._LOG_RevealTensorboard, self.saver.TensorboardURL)
+        self.saver.debug(*self._DEBUG_CallBeforRunFinish)
 
     def _afterRun(self, hook, *args, **kwArgs):
-        self.saver.debug("Call `_afterRun()`.")
-        self.saver.debug("Training loop finished.")
+        self.saver.debug(*self._DEBUG_CallAfterRunStart)
+        self.saver.debug(*self._DEBUG_TrainLoopFinish)
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
-        self.saver.debug("End call `_afterRun()`.")
+        self.saver.debug(*self._DEBUG_CallAfterRunFinish)
 
     def _stepStart(self, hook, *args, **kwArgs) -> Dict[str, Any]:
         return hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs) or dict()
@@ -305,34 +367,33 @@ class PalTrainer(Restorable):
         hook(self._step, self._epoch, self, *args, logger=self.saver, loss=loss, **kwArgs)
 
     def _epochStart(self, hook, *args, **kwArgs):
-        self.saver.debug("Call `_epochStart()`.")
-        self.saver.debug("Epoch %4d started.", self._epoch + 1)
+        self.saver.debug(*self._DEBUG_CallEpochBeginStart, self._epoch + 1)
 
         gc.collect()
         gc.collect()
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
 
-        self.saver.debug("End call `_epochStart()`.")
+        self.saver.debug(*self._DEBUG_CallEpochBeginFinish)
 
     def _epochFinish(self, hook, *args, **kwArgs):
-        self.saver.debug("Call `_epochFinish()`.")
         self._epoch += 1
 
-        self.saver.debug("Epoch %4d finished.", self._epoch)
+        self.saver.debug(*self._DEBUG_CallEpochEndStart, self._epoch)
 
 
         dist.broadcast(self.earlyStopFlag, 0)
         if self.earlyStopFlag:
-            self.saver.info("Early stopped at epoch %4d.", self._epoch)
+            self.saver.info(*self._LOG_EarlyStop, self._epoch)
             raise StopIteration
 
         self._scheduler.step()
         self._model.module.step()
-        self.saver.debug("Lr is set to %.2e.", self._scheduler.get_last_lr()[0])
-        self.saver.debug("Temperature is set to %.2e.", self._model.module.Temperature)
+        self.saver.debug(*self._DEBUG_ShowSchdrUpdate, self._scheduler.get_last_lr()[0])
+        self.saver.debug(*self._DEBUG_ShowTemperatureUpdate, self._model.module.Temperature)
 
         hook(self._step, self._epoch, self, *args, logger=self.saver, **kwArgs)
-        self.saver.debug("End call `_epochFinish()`.")
+        self.saver.debug(*self._DEBUG_CallEpochEndFinish)
+
 
 
 class MainTrainer(PalTrainer, SafeTerminate):
@@ -353,19 +414,19 @@ class MainTrainer(PalTrainer, SafeTerminate):
         self.earlyStopCount = 0
 
     def onTerminate(self, signum, frame):
-        self.saver.critical("Main process was interrupted, try to save necessary info.")
-        self.saver.critical("This post-process will be killed after %d secs if stuck.", Consts.TimeOut)
+        self.saver.critical(*self._CRITICAL_ProcessInterrupt)
+        self.saver.critical(*self._CRITICAL_TimeoutInfo, Consts.TimeOut)
         self.progress.__exit__(None, None, None)
         self.save(os.path.join(self.saver.SaveDir, "last.ckpt"))
-        self.saver.critical("Find the last checkpoint at `%s`", relativePath(os.path.join(self.saver.SaveDir, "last.ckpt")))
+        self.saver.critical(*self._CRITICAL_ShutdownMessage, relativePath(os.path.join(self.saver.SaveDir, "last.ckpt")))
         self.summary()
 
     def summary(self):
         if self.bestmAP < 0:
-            self.saver.info("Total epoches: %d, total steps: %s, best mAP: N/A.", self._epoch, self._step)
+            self.saver.info(*self._LOG_SummaryInfoNomAP, self._epoch, self._step)
         else:
-            self.saver.info("Total epoches: %d, total steps: %s, best mAP: %.2f%%.", self._epoch, self._step, self.bestmAP * 100)
-        self.saver.info("Model saved to %s`.", relativePath(os.path.join(self.saver.SaveDir, "[ONE_OF_A].ckpt")))
+            self.saver.info(*self._LOG_SummaryInfo, self._epoch, self._step, self.bestmAP * 100)
+        self.saver.info(*self._LOG_SummarySaveCkpt, relativePath(os.path.join(self.saver.SaveDir, "[ONE_OF_A].ckpt")))
 
     def _beforeRun(self, hook, *args, **kwArgs):
         self.progress.start_task(self.trainingBar)
@@ -425,36 +486,39 @@ class MainTrainer(PalTrainer, SafeTerminate):
                 (config.Train.ValFreq, self.validate), logger=saver
             ), epochFinishHook), "EpochFinishHook", saver)
 
+        beforeRunHook = checkHook(ChainHook(
+            self.validate
+            , beforeRunHook), "BeforeRunHook", saver)
+
         return beforeRunHook, afterRunHook, stepStartHook, stepFinishHook, epochStartHook, epochFinishHook
 
-    @staticmethod
-    def _createDatasets(config: Config, saver: Saver) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
-        saver.debug("Create `config.Train.TrainSet` (\"%s\") with training pipeline: `%s`.", config.Train.TrainSet.Key, config.Train.TrainSet.Pipeline.Key or "default")
+    def _createDatasets(self) -> Dict[str, Union[TrainSplit, QuerySplit, Database]]:
+        self.saver.debug(*self._DEBUG_CreateDatasetStart, self.config.Train.TrainSet.Key, self.config.Train.TrainSet.Pipeline.Key or "default")
         try:
-            trainPipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.TrainSet.Pipeline.Key), saver)(**config.Train.TrainSet.Pipeline.Params)
+            trainPipeline = trackingFunctionCalls(DataPipeRegistry.get(self.config.Train.TrainSet.Pipeline.Key), self.saver)(**self.config.Train.TrainSet.Pipeline.Params)
         except KeyError:
             trainPipeline = None
-        trainSet = trackingFunctionCalls(DatasetRegistry.get(config.Train.TrainSet.Key), saver)(**config.Train.TrainSet.Params, pipeline=trainPipeline)
+        trainSet = trackingFunctionCalls(DatasetRegistry.get(self.config.Train.TrainSet.Key), self.saver)(**self.config.Train.TrainSet.Params, pipeline=trainPipeline)
 
 
-        saver.debug("Create `config.Train.QuerySet` (\"%s\") with evaluation pipeline: `%s`.", config.Train.QuerySet.Key, config.Train.QuerySet.Pipeline.Key or "default")
+        self.saver.debug(*self._DEBUG_CreateQuerysetStart, self.config.Train.QuerySet.Key, self.config.Train.QuerySet.Pipeline.Key or "default")
         try:
-            queryPipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.QuerySet.Pipeline.Key), saver)(**config.Train.QuerySet.Pipeline.Params)
+            queryPipeline = trackingFunctionCalls(DataPipeRegistry.get(self.config.Train.QuerySet.Pipeline.Key), self.saver)(**self.config.Train.QuerySet.Pipeline.Params)
         except KeyError:
             queryPipeline = None
-        querySet = trackingFunctionCalls(DatasetRegistry.get(config.Train.QuerySet.Key), saver)(**config.Train.QuerySet.Params, pipeline=queryPipeline)
+        querySet = trackingFunctionCalls(DatasetRegistry.get(self.config.Train.QuerySet.Key), self.saver)(**self.config.Train.QuerySet.Params, pipeline=queryPipeline)
 
 
-        saver.debug("Create `config.Train.Database` (\"%s\") with evaluation pipeline: `%s`.", config.Train.Database.Key, config.Train.Database.Key or "default")
+        self.saver.debug(*self._DEBUG_CreateDatabaseStart, self.config.Train.Database.Key, self.config.Train.Database.Key or "default")
         try:
-            databasePipeline = trackingFunctionCalls(DataPipeRegistry.get(config.Train.Database.Pipeline.Key), saver)(**config.Train.Database.Pipeline.Params)
+            databasePipeline = trackingFunctionCalls(DataPipeRegistry.get(self.config.Train.Database.Pipeline.Key), self.saver)(**self.config.Train.Database.Pipeline.Params)
         except KeyError:
             databasePipeline = None
-        database = trackingFunctionCalls(DatasetRegistry.get(config.Train.Database.Key), saver)(**config.Train.Database.Params, pipeline=databasePipeline)
+        database = trackingFunctionCalls(DatasetRegistry.get(self.config.Train.Database.Key), self.saver)(**self.config.Train.Database.Params, pipeline=databasePipeline)
 
 
 
-        saver.debug("Train set \r\n\t%s, \r\nquery set \r\n\t%s and \r\ndatabase \r\n\t%s \r\nmounted.", trainSet, database, querySet)
+        self.saver.debug(*self._DEBUG_CreateDatasetMainFinish, trainSet, database, querySet)
         return {
             "trainSet": trainSet.Split,
             "database": database.Split,
@@ -468,7 +532,7 @@ class MainTrainer(PalTrainer, SafeTerminate):
     def validate(self, *_, database: Database, querySet: QuerySplit, **__):
         torch.cuda.empty_cache()
 
-        self.saver.debug("Start validation at epoch %4d.", self._epoch)
+        self.saver.debug(*self._DEBUG_Validation, self._epoch)
 
         results, summary = self.validator.validate(self._model.module, database, querySet, self.progress)
 
@@ -490,11 +554,11 @@ class MainTrainer(PalTrainer, SafeTerminate):
             self.earlyStopCount = 0
         else:
             self.earlyStopCount += 1
-            self.saver.debug("Performance not improved for %d / %d epochs.", self.earlyStopCount, self.config.Train.EarlyStop)
+            self.saver.debug(*self._DEBUG_FindOneEarlyStop, self.earlyStopCount, self.config.Train.EarlyStop)
             if self.earlyStopCount >= self.config.Train.EarlyStop:
                 self.earlyStop()
 
-        self.saver.debug("End validation at epoch %4d.", self._epoch)
+        self.saver.debug(*self._DEBUG_EndValidation, self._epoch)
         self._model.train()
 
     def earlyStop(self):

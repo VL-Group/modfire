@@ -5,7 +5,7 @@ model:
   params:
     bits: 32
     backbone: resnet50
-    pretrained: false
+    pretrained: true
     hashMethod:
       key: STEHash
       # params:
@@ -23,7 +23,7 @@ train:
     key: CIFAR10
     params:
       root: data/easy/cifar10/
-      batchSize: 256
+      batchSize: 128
       mode: Train
     pipeline:
       key: SelfSupervisedTrainingDataPipe
@@ -65,5 +65,5 @@ train:
       warmupDecay: 1.e-2
   gpu:
     gpus: 1
-    vRam: -1
+    vRam: 8000
     wantsMore: false
